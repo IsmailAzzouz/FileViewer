@@ -1,0 +1,9 @@
+[package]
+name = "file-viewer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gpui = "0.2.2"
+serde = "1.0"
+serde_json = { version = "1.0", features = ["preserve_order"] }
