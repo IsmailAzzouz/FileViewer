@@ -1,0 +1,3 @@
+[submodule ".agents/skills/gpui-skills"]
+	path = .agents/skills/gpui-skills
+	url = https://github.com/cnwzhu/gpui-skills
