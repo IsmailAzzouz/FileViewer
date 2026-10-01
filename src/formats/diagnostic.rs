@@ -62,17 +62,28 @@ impl std::fmt::Display for Diagnostic {
 }
 
 /// Supported file formats for the viewer.
+///
+/// All three JSON variants share [`JsonType`](crate::formats::json::JsonType)
+/// leaves, so only this enum and the parser/formatter dispatch differ between
+/// them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FileFormat {
-    /// JSON documents.
+    /// RFC 8259 JSON documents.
     #[default]
     Json,
+    /// JSON with Comments, allowing `//` and `/* */` comments and trailing commas.
+    JsonC,
+    /// JSON Lines: one JSON value per line.
+    JsonL,
     /// TOML documents.
     Toml,
 }
 
 impl FileFormat {
     /// Detects the file format from the file extension.
+    ///
+    /// Unrecognized extensions fall back to JSON, preserving the historical
+    /// behaviour of opening arbitrary files as JSON.
     pub fn from_path(path: &std::path::Path) -> Self {
         match path
             .extension()
@@ -80,6 +91,8 @@ impl FileFormat {
             .map(|e| e.to_ascii_lowercase())
             .as_deref()
         {
+            Some("jsonc") => FileFormat::JsonC,
+            Some("jsonl") | Some("ndjson") => FileFormat::JsonL,
             Some("toml") => FileFormat::Toml,
             _ => FileFormat::Json,
         }
@@ -89,6 +102,8 @@ impl FileFormat {
     pub fn default_extension(&self) -> &'static str {
         match self {
             FileFormat::Json => "json",
+            FileFormat::JsonC => "jsonc",
+            FileFormat::JsonL => "jsonl",
             FileFormat::Toml => "toml",
         }
     }
@@ -97,6 +112,8 @@ impl FileFormat {
     pub fn name(&self) -> &'static str {
         match self {
             FileFormat::Json => "JSON",
+            FileFormat::JsonC => "JSONC",
+            FileFormat::JsonL => "JSONL",
             FileFormat::Toml => "TOML",
         }
     }

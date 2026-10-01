@@ -6,7 +6,10 @@ use crate::editor::{
     render_editor, EditorProps, TextBuffer, VisualRow,
 };
 use crate::formats::diagnostic::{Diagnostic, FileFormat};
-use crate::formats::json::{format_json, minify_json, parse_json, JsonSpan};
+use crate::formats::json::{
+    format_json, format_jsonc, format_jsonl, minify_json, minify_jsonc, minify_jsonl, parse_json,
+    parse_jsonc, parse_jsonl, JsonSpan,
+};
 use crate::formats::toml::{format_toml, minify_toml, parse_toml};
 use crate::theme::{
     BG_APP, CHAR_WIDTH, CODE_PADDING_LEFT, DEFAULT_WRAP_COLUMN, GUTTER_WIDTH, TEXT_MUTED,
@@ -60,6 +63,30 @@ pub const SAMPLE_JSON: &str = r#"{
   ]
 }"#;
 
+/// Default rich sample JSONC demonstrating comments and trailing commas.
+pub const SAMPLE_JSONC: &str = r#"{
+  // Compiler options
+  "compilerOptions": {
+    /* Module resolution and language level */
+    "target": "es2020",
+    "module": "esnext",
+    "strict": true,
+  },
+  "include": [
+    "src/**/*", // only our sources
+  ],
+  "exclude": ["node_modules"],
+  "version": 2 // trailing commas are allowed here
+}"#;
+
+/// Default rich sample JSON Lines demonstrating multi-document records.
+pub const SAMPLE_JSONL: &str = r#"{"id": 1, "event": "open", "path": "README.md", "ok": true}
+{"id": 2, "event": "open", "path": "src/main.rs", "ok": true}
+{"id": 3, "event": "close", "path": "src/main.rs", "ok": false}
+
+{"id": 4, "event": "close", "path": "README.md", "ok": true}
+{"id": 5, "event": "error", "path": "Cargo.toml", "ok": false, "code": 404}
+"#;
 /// Default rich sample TOML demonstrating the common TOML constructs.
 pub const SAMPLE_TOML: &str = r#"# FileViewer configuration
 project = "FileViewer"
@@ -242,6 +269,8 @@ impl AppView {
                 .spawn(async move {
                     match format {
                         FileFormat::Json => parse_json(&text_arc).map_err(Diagnostic::Json),
+                        FileFormat::JsonC => parse_jsonc(&text_arc).map_err(Diagnostic::Json),
+                        FileFormat::JsonL => parse_jsonl(&text_arc).map_err(Diagnostic::Json),
                         FileFormat::Toml => parse_toml(&text_arc).map_err(Diagnostic::Toml),
                     }
                 })
@@ -289,6 +318,8 @@ impl AppView {
         self.tree.clear();
         match self.file_format {
             FileFormat::Json => self.buffer.set_text(SAMPLE_JSON),
+            FileFormat::JsonC => self.buffer.set_text(SAMPLE_JSONC),
+            FileFormat::JsonL => self.buffer.set_text(SAMPLE_JSONL),
             FileFormat::Toml => self.buffer.set_text(SAMPLE_TOML),
         }
         self.rebuild_visual_rows();
@@ -322,9 +353,10 @@ impl AppView {
             self.tree.set_root(None);
             return;
         }
-
         let result = match self.file_format {
             FileFormat::Json => parse_json(text).map_err(Diagnostic::Json),
+            FileFormat::JsonC => parse_jsonc(text).map_err(Diagnostic::Json),
+            FileFormat::JsonL => parse_jsonl(text).map_err(Diagnostic::Json),
             FileFormat::Toml => parse_toml(text).map_err(Diagnostic::Toml),
         };
 
@@ -348,9 +380,12 @@ impl AppView {
         if text.trim().is_empty() {
             return;
         }
-
         let result = match self.file_format {
             FileFormat::Json => format_json(text, 2).map_err(Diagnostic::Json),
+            FileFormat::JsonC => format_jsonc(text, 2).map_err(Diagnostic::Json),
+            // JSON Lines is already one-record-per-line, so formatting only
+            // normalizes trailing whitespace; the indent argument is unused.
+            FileFormat::JsonL => format_jsonl(text).map_err(Diagnostic::Json),
             FileFormat::Toml => format_toml(text, 2).map_err(Diagnostic::Toml),
         };
 
@@ -378,12 +413,11 @@ impl AppView {
     /// Complexity: O(N) where N is the length of the document text.
     pub fn minify_document(&mut self, cx: &mut Context<Self>) {
         let text = self.buffer.text();
-        if text.trim().is_empty() {
-            return;
-        }
-
         let result = match self.file_format {
             FileFormat::Json => minify_json(text).map_err(Diagnostic::Json),
+            // Minifying JSONC strips comments, yielding strict JSON.
+            FileFormat::JsonC => minify_jsonc(text).map_err(Diagnostic::Json),
+            FileFormat::JsonL => minify_jsonl(text).map_err(Diagnostic::Json),
             FileFormat::Toml => minify_toml(text).map_err(Diagnostic::Toml),
         };
 

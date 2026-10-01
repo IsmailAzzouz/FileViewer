@@ -52,6 +52,7 @@ pub const SYNTAX_NUMBER: Hsla = const_hsla!(43.0 / 360.0, 0.96, 0.64, 1.0); // #
 pub const SYNTAX_BOOLEAN: Hsla = const_hsla!(271.0 / 360.0, 0.85, 0.72, 1.0); // #bc83f8 (purple)
 pub const SYNTAX_NULL: Hsla = const_hsla!(0.0 / 360.0, 0.84, 0.68, 1.0); // #f46a6a (rose/red)
 pub const SYNTAX_PUNCTUATION: Hsla = const_hsla!(220.0 / 360.0, 0.14, 0.75, 1.0); // #b7becc (slate)
+pub const SYNTAX_COMMENT: Hsla = const_hsla!(240.0 / 360.0, 0.05, 0.50, 1.0); // #7f7f89 (grey)
 
 // --- Editor Highlights ---
 pub const LINE_ACTIVE_BG: Hsla = const_hsla!(240.0 / 360.0, 0.05, 0.15, 0.6);

@@ -5,8 +5,8 @@
 
 use crate::formats::json::StyledSegment;
 use crate::theme::{
-    SYNTAX_BOOLEAN, SYNTAX_KEY, SYNTAX_NULL, SYNTAX_NUMBER, SYNTAX_PUNCTUATION, SYNTAX_STRING,
-    TEXT_MUTED, TEXT_PRIMARY,
+    SYNTAX_BOOLEAN, SYNTAX_COMMENT, SYNTAX_KEY, SYNTAX_NULL, SYNTAX_NUMBER, SYNTAX_PUNCTUATION,
+    SYNTAX_STRING, TEXT_MUTED, TEXT_PRIMARY,
 };
 
 /// Tokenizes a single line of TOML into styled segments.
@@ -38,7 +38,7 @@ pub fn tokenize_toml_line(line: &str) -> Vec<StyledSegment> {
         if ch == '#' {
             segments.push(StyledSegment {
                 text: chars[i..].iter().collect(),
-                color: TEXT_MUTED,
+                color: SYNTAX_COMMENT,
             });
             break;
         }

@@ -6,6 +6,38 @@
 use super::model::{JsonSpan, JsonType};
 use crate::formats::node::{NodeType, TreeNode};
 
+/// Permissive grammar variants accepted by the JSON scanner.
+///
+/// All three dialects emit the same [`TreeNode`] model with [`JsonType`]
+/// leaves, so the tree view, symbol index, and editor/tree synchronization
+/// never learn which dialect produced a document. Only [`JsonDiagnostic`]
+/// wording differs between them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum JsonDialect {
+    /// RFC 8259 JSON: no comments and no trailing commas.
+    #[default]
+    Strict,
+    /// JSON with Comments: `//` and `/* */` comments plus trailing commas.
+    ///
+    /// This is the dialect used by `tsconfig.json`, `.vscode/*.json`, and
+    /// most other editor-facing JSON configuration files.
+    Jsonc,
+    /// JSON Lines: one strict JSON value per line, no comments.
+    Jsonl,
+}
+
+impl JsonDialect {
+    /// Returns true when `//` and `/* */` comments are treated as trivia.
+    fn allows_comments(self) -> bool {
+        matches!(self, Self::Jsonc)
+    }
+
+    /// Returns true when a comma may precede a closing `}` or `]`.
+    fn allows_trailing_comma(self) -> bool {
+        matches!(self, Self::Jsonc)
+    }
+}
+
 /// Diagnostic information about a JSON parsing error.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsonDiagnostic {
@@ -58,41 +90,123 @@ struct Token {
 
 /// Tokenizer for scanning JSON text.
 struct Scanner<'a> {
+    /// Full document text, retained for diagnostic context snippets.
     source: &'a str,
+    /// Full document bytes, indexed by absolute offset.
     bytes: &'a [u8],
+    /// Absolute byte offset of the next byte to scan.
     cursor: usize,
+    /// Exclusive byte offset at which scanning stops.
+    limit: usize,
     line: usize,
     col: usize,
+    dialect: JsonDialect,
 }
 
 impl<'a> Scanner<'a> {
-    fn new(source: &'a str) -> Self {
+    fn with_dialect(source: &'a str, dialect: JsonDialect) -> Self {
         let source = source.strip_prefix('\u{FEFF}').unwrap_or(source);
+        Self::range(source, dialect, 0, 1, source.len())
+    }
+
+    /// Creates a scanner over `[start_byte, limit)` of `source` that still
+    /// reports absolute positions.
+    ///
+    /// This lets a single JSON Lines record be parsed straight out of the
+    /// enclosing document, so record spans need no second offset pass.
+    fn range(
+        source: &'a str,
+        dialect: JsonDialect,
+        start_byte: usize,
+        start_line: usize,
+        limit: usize,
+    ) -> Self {
         Self {
             source,
             bytes: source.as_bytes(),
-            cursor: 0,
-            line: 1,
+            cursor: start_byte,
+            limit,
+            line: start_line,
             col: 1,
+            dialect,
         }
     }
 
-    /// Skips whitespace characters and returns true if more tokens remain.
+    /// Returns the exclusive byte offset at which scanning stops.
+    #[inline]
+    fn end(&self) -> usize {
+        self.limit
+    }
+
+    /// Returns true when the scan range is exhausted.
+    #[inline]
+    fn at_end(&self) -> bool {
+        self.cursor >= self.limit
+    }
+
+    /// Skips whitespace and, when the dialect allows it, comments.
     ///
-    /// Complexity: O(W) where W is the number of whitespace bytes.
-    fn skip_whitespace(&mut self) {
-        while self.cursor < self.bytes.len() {
-            match self.bytes[self.cursor] {
-                b' ' | b'\t' | b'\r' => {
-                    self.cursor += 1;
-                    self.col += 1;
+    /// Complexity: O(W + C) where W and C are the counts of skipped
+    /// whitespace and comment bytes.
+    fn skip_trivia(&mut self) -> Result<(), JsonDiagnostic> {
+        loop {
+            while self.cursor < self.limit {
+                match self.bytes[self.cursor] {
+                    b' ' | b'\t' | b'\r' => {
+                        self.cursor += 1;
+                        self.col += 1;
+                    }
+                    b'\n' => {
+                        self.cursor += 1;
+                        self.line += 1;
+                        self.col = 1;
+                    }
+                    _ => break,
                 }
-                b'\n' => {
-                    self.cursor += 1;
-                    self.line += 1;
-                    self.col = 1;
+            }
+
+            if !self.dialect.allows_comments() || self.cursor + 1 >= self.limit {
+                return Ok(());
+            }
+            if self.bytes[self.cursor] != b'/' {
+                return Ok(());
+            }
+
+            match self.bytes[self.cursor + 1] {
+                // Line comment runs to the end of the line.
+                b'/' => {
+                    while self.cursor < self.limit && self.bytes[self.cursor] != b'\n' {
+                        self.advance();
+                    }
                 }
-                _ => break,
+                // Block comment runs to the closing delimiter.
+                b'*' => {
+                    let (start_line, start_col) = (self.line, self.col);
+                    self.advance();
+                    self.advance();
+                    loop {
+                        if self.at_end() {
+                            return Err(build_diagnostic(
+                                self.source,
+                                self.cursor,
+                                start_line,
+                                start_col,
+                                "Unterminated block comment: missing closing '*/'".to_string(),
+                            ));
+                        }
+                        if self.bytes[self.cursor] == b'*'
+                            && self.cursor + 1 < self.limit
+                            && self.bytes[self.cursor + 1] == b'/'
+                        {
+                            self.advance();
+                            self.advance();
+                            break;
+                        }
+                        self.advance();
+                    }
+                }
+                // A lone '/' is not trivia; let the caller report it.
+                _ => return Ok(()),
             }
         }
     }
@@ -101,9 +215,9 @@ impl<'a> Scanner<'a> {
     ///
     /// Complexity: O(L) where L is the length of the scanned token.
     fn next_token(&mut self) -> Result<Token, JsonDiagnostic> {
-        self.skip_whitespace();
+        self.skip_trivia()?;
 
-        if self.cursor >= self.bytes.len() {
+        if self.at_end() {
             let span = JsonSpan::new(
                 self.cursor,
                 self.cursor,
@@ -229,7 +343,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn advance(&mut self) {
-        if self.cursor < self.bytes.len() {
+        if self.cursor < self.end() {
             if self.bytes[self.cursor] == b'\n' {
                 self.line += 1;
                 self.col = 1;
@@ -262,7 +376,7 @@ impl<'a> Scanner<'a> {
         self.advance(); // Skip opening quote
         let mut string_content = String::new();
 
-        while self.cursor < self.bytes.len() {
+        while self.cursor < self.end() {
             let b = self.bytes[self.cursor];
             match b {
                 b'"' => {
@@ -282,7 +396,7 @@ impl<'a> Scanner<'a> {
                 }
                 b'\\' => {
                     self.advance();
-                    if self.cursor >= self.bytes.len() {
+                    if self.cursor >= self.end() {
                         return Err(build_diagnostic(
                             self.source,
                             start_byte,
@@ -307,7 +421,7 @@ impl<'a> Scanner<'a> {
                                 self.scan_hex_digits(4, start_byte, start_line, start_col)?;
                             // Support UTF-16 surrogate pairs (RFC 8259 Section 7)
                             if (0xD800..=0xDBFF).contains(&hex_chars)
-                                && self.cursor + 1 < self.bytes.len()
+                                && self.cursor + 1 < self.end()
                                 && self.bytes[self.cursor] == b'\\'
                                 && self.bytes[self.cursor + 1] == b'u'
                             {
@@ -389,7 +503,7 @@ impl<'a> Scanner<'a> {
     ) -> Result<u32, JsonDiagnostic> {
         let mut value = 0u32;
         for _ in 0..count {
-            if self.cursor >= self.bytes.len() {
+            if self.cursor >= self.end() {
                 return Err(build_diagnostic(
                     self.source,
                     start_byte,
@@ -429,7 +543,7 @@ impl<'a> Scanner<'a> {
     ) -> Result<Token, JsonDiagnostic> {
         if self.bytes[self.cursor] == b'-' {
             self.advance();
-            if self.cursor >= self.bytes.len() || !self.bytes[self.cursor].is_ascii_digit() {
+            if self.cursor >= self.end() || !self.bytes[self.cursor].is_ascii_digit() {
                 return Err(build_diagnostic(
                     self.source,
                     self.cursor,
@@ -443,7 +557,7 @@ impl<'a> Scanner<'a> {
         // Integer part
         if self.bytes[self.cursor] == b'0' {
             self.advance();
-            if self.cursor < self.bytes.len() && self.bytes[self.cursor].is_ascii_digit() {
+            if self.cursor < self.end() && self.bytes[self.cursor].is_ascii_digit() {
                 return Err(build_diagnostic(
                     self.source,
                     self.cursor,
@@ -453,15 +567,15 @@ impl<'a> Scanner<'a> {
                 ));
             }
         } else {
-            while self.cursor < self.bytes.len() && self.bytes[self.cursor].is_ascii_digit() {
+            while self.cursor < self.end() && self.bytes[self.cursor].is_ascii_digit() {
                 self.advance();
             }
         }
 
         // Fractional part
-        if self.cursor < self.bytes.len() && self.bytes[self.cursor] == b'.' {
+        if self.cursor < self.end() && self.bytes[self.cursor] == b'.' {
             self.advance();
-            if self.cursor >= self.bytes.len() || !self.bytes[self.cursor].is_ascii_digit() {
+            if self.cursor >= self.end() || !self.bytes[self.cursor].is_ascii_digit() {
                 return Err(build_diagnostic(
                     self.source,
                     self.cursor,
@@ -470,22 +584,22 @@ impl<'a> Scanner<'a> {
                     "Expected digits after decimal point '.'".to_string(),
                 ));
             }
-            while self.cursor < self.bytes.len() && self.bytes[self.cursor].is_ascii_digit() {
+            while self.cursor < self.end() && self.bytes[self.cursor].is_ascii_digit() {
                 self.advance();
             }
         }
 
         // Exponent part
-        if self.cursor < self.bytes.len()
+        if self.cursor < self.end()
             && (self.bytes[self.cursor] == b'e' || self.bytes[self.cursor] == b'E')
         {
             self.advance();
-            if self.cursor < self.bytes.len()
+            if self.cursor < self.end()
                 && (self.bytes[self.cursor] == b'+' || self.bytes[self.cursor] == b'-')
             {
                 self.advance();
             }
-            if self.cursor >= self.bytes.len() || !self.bytes[self.cursor].is_ascii_digit() {
+            if self.cursor >= self.end() || !self.bytes[self.cursor].is_ascii_digit() {
                 return Err(build_diagnostic(
                     self.source,
                     self.cursor,
@@ -494,7 +608,7 @@ impl<'a> Scanner<'a> {
                     "Expected digits in exponent".to_string(),
                 ));
             }
-            while self.cursor < self.bytes.len() && self.bytes[self.cursor].is_ascii_digit() {
+            while self.cursor < self.end() && self.bytes[self.cursor].is_ascii_digit() {
                 self.advance();
             }
         }
@@ -593,14 +707,41 @@ pub struct JsonParser<'a> {
     next_node_id: usize,
     depth: usize,
     path_buf: String,
+    dialect: JsonDialect,
 }
 
 impl<'a> JsonParser<'a> {
-    /// Creates a parser for the given JSON source.
+    /// Creates a strict RFC 8259 parser for the given JSON source.
     ///
     /// Complexity: O(1).
     pub fn new(source: &'a str) -> Result<Self, JsonDiagnostic> {
-        let mut scanner = Scanner::new(source);
+        Self::with_dialect(source, JsonDialect::default())
+    }
+
+    /// Creates a parser for the given source using a permissive dialect.
+    ///
+    /// Complexity: O(1).
+    pub fn with_dialect(source: &'a str, dialect: JsonDialect) -> Result<Self, JsonDiagnostic> {
+        Self::build(Scanner::with_dialect(source, dialect), dialect)
+    }
+
+    /// Creates a parser restricted to `[start_byte, limit)` of `source`.
+    ///
+    /// Used to parse one JSON Lines record while keeping every span
+    /// absolute to the enclosing document.
+    ///
+    /// Complexity: O(1).
+    pub fn range(
+        source: &'a str,
+        start_byte: usize,
+        start_line: usize,
+        limit: usize,
+    ) -> Result<Self, JsonDiagnostic> {
+        let dialect = JsonDialect::Jsonl;
+        Self::build(Scanner::range(source, dialect, start_byte, start_line, limit), dialect)
+    }
+
+    fn build(mut scanner: Scanner<'a>, dialect: JsonDialect) -> Result<Self, JsonDiagnostic> {
         let current_token = scanner.next_token()?;
         Ok(Self {
             scanner,
@@ -608,19 +749,30 @@ impl<'a> JsonParser<'a> {
             next_node_id: 1,
             depth: 0,
             path_buf: String::with_capacity(128),
+            dialect,
         })
     }
 
-    /// Parses the entire document into an optional root `TreeNode`.
+    /// Parses the entire document into an optional root `TreeNode` at `$`.
     /// Returns Ok(None) if the document is completely empty or only whitespace.
     ///
     /// Complexity: O(N) where N is the length of the source document.
-    pub fn parse(mut self) -> Result<Option<TreeNode>, JsonDiagnostic> {
+    pub fn parse(self) -> Result<Option<TreeNode>, JsonDiagnostic> {
+        self.parse_root("$")
+    }
+
+    /// Parses a single value and reports it at a caller-chosen root path.
+    ///
+    /// JSON Lines uses this to place each record at `$[index]`, so tree
+    /// paths and symbol navigation read naturally for a multi-document file.
+    ///
+    /// Complexity: O(N) where N is the length of the scanned range.
+    pub fn parse_root(mut self, root_path: &str) -> Result<Option<TreeNode>, JsonDiagnostic> {
         if self.current_token.kind == TokenKind::Eof {
             return Ok(None);
         }
 
-        self.path_buf.push('$');
+        self.path_buf.push_str(root_path);
         let root = self.parse_value(None).map_err(|boxed| *boxed)?;
 
         if self.current_token.kind != TokenKind::Eof {
@@ -629,7 +781,13 @@ impl<'a> JsonParser<'a> {
                 self.current_token.span.start_byte,
                 self.current_token.span.start_line,
                 self.current_token.span.start_col,
-                "Unexpected trailing content after JSON root element".to_string(),
+                if self.dialect == JsonDialect::Jsonl {
+                    "Unexpected content after JSON value: JSON Lines requires exactly one \
+                     complete value per line"
+                        .to_string()
+                } else {
+                    "Unexpected trailing content after JSON root element".to_string()
+                },
             ));
         }
 
@@ -698,6 +856,12 @@ impl<'a> JsonParser<'a> {
                             (k_val, span)
                         }
                         TokenKind::RightBrace => {
+                            // A comma directly before the closing brace is a
+                            // trailing comma: rejected by strict JSON,
+                            // accepted by JSONC.
+                            if self.dialect.allows_trailing_comma() {
+                                break;
+                            }
                             return Err(Box::new(build_diagnostic(
                                 self.scanner.source,
                                 self.current_token.span.start_byte,
@@ -809,6 +973,11 @@ impl<'a> JsonParser<'a> {
                 let mut index = 0usize;
                 loop {
                     if self.current_token.kind == TokenKind::RightBracket {
+                        // Trailing comma: permitted by JSONC, rejected by
+                        // strict JSON.
+                        if self.dialect.allows_trailing_comma() {
+                            break;
+                        }
                         return Err(Box::new(build_diagnostic(
                             self.scanner.source,
                             self.current_token.span.start_byte,
@@ -1006,4 +1175,127 @@ fn truncate_preview(s: &str, max_len: usize) -> String {
     } else {
         s.to_string()
     }
+}
+
+/// Renumbers a subtree with globally unique ids in pre-order.
+///
+/// Each JSON Lines record is parsed by its own parser, so ids restart at 1 per
+/// record and would otherwise collide in the merged tree. `TreeState` relies on
+/// ids being unique for expansion state and selection tracking.
+///
+/// Complexity: O(N) where N is the number of nodes in the subtree.
+fn renumber(node: &mut TreeNode, next_id: &mut usize) {
+    node.id = *next_id;
+    *next_id += 1;
+    for child in &mut node.children {
+        renumber(child, next_id);
+    }
+}
+
+/// Shifts every span in the subtree forward by `offset` bytes.
+///
+/// Spans are produced relative to BOM-stripped text, but callers index into the
+/// original buffer, so a leading BOM would otherwise shift every span by its own
+/// length and make each span point at the wrong text.
+///
+/// Complexity: O(N) where N is the number of nodes in the subtree.
+fn shift_spans(node: &mut TreeNode, offset: usize) {
+    node.span.start_byte += offset;
+    node.span.end_byte += offset;
+    if let Some(key) = &mut node.key_span {
+        key.start_byte += offset;
+        key.end_byte += offset;
+    }
+    for child in &mut node.children {
+        shift_spans(child, offset);
+    }
+}
+
+/// Parses a JSON with Comments document.
+///
+/// Accepts `//` and `/* */` comments and trailing commas, which is the dialect
+/// used by `tsconfig.json` and `.vscode/*.json`. Comments are trivia: they are
+/// skipped and never become tree nodes.
+///
+/// Returns `Ok(None)` if the source is empty, whitespace, or comment-only.
+///
+/// Complexity: O(N) where N is the length of the source.
+pub fn parse_jsonc(source: &str) -> Result<Option<TreeNode>, JsonDiagnostic> {
+    JsonParser::with_dialect(source, JsonDialect::Jsonc)?.parse()
+}
+
+/// Parses a JSON Lines (`.jsonl` / `.ndjson`) document.
+///
+/// Each non-blank line must hold exactly one complete JSON value, which is the
+/// defining constraint of the format. Records become children of a synthetic
+/// array root so the tree view, filter, and symbol index work unchanged. Record
+/// `i` is reported at path `$[i]`, and every span stays absolute to the
+/// enclosing document, so editor/tree synchronization selects the right record.
+///
+/// Returns `Ok(None)` if the source is empty or whitespace only.
+///
+/// Complexity: O(N) where N is the length of the source.
+pub fn parse_jsonl(source: &str) -> Result<Option<TreeNode>, JsonDiagnostic> {
+    let stripped = source.strip_prefix('\u{FEFF}').unwrap_or(source);
+    if stripped.trim().is_empty() {
+        return Ok(None);
+    }
+
+    let mut children: Vec<TreeNode> = Vec::new();
+    let mut next_id = 1usize;
+    let mut byte = 0usize;
+    let mut line_no = 1usize;
+    // Byte length of any stripped BOM; spans are made absolute to `source` so
+    // that callers indexing the original buffer stay in sync.
+    let bom_len = source.len() - stripped.len();
+
+    for raw_line in stripped.split_inclusive('\n') {
+        let content = raw_line.trim_end_matches(['\n', '\r']);
+        let line_start = byte;
+        byte += raw_line.len();
+
+        if !content.trim().is_empty() {
+            let root_path = format!("$[{}]", children.len());
+            let limit = line_start + content.len();
+            // Parse the BOM-stripped text: the byte offsets above are already
+            // relative to it, and leaving the BOM in would make the scanner
+            // report it as a stray character in the first record.
+            let parser = JsonParser::range(stripped, line_start, line_no, limit)?;
+            if let Some(mut record) = parser.parse_root(&root_path)? {
+                renumber(&mut record, &mut next_id);
+                shift_spans(&mut record, bom_len);
+                children.push(record);
+            }
+        }
+
+        line_no += 1;
+    }
+
+    if children.is_empty() {
+        return Ok(None);
+    }
+
+    let total_lines = stripped.lines().count();
+    let last_line_len = stripped.lines().last().unwrap_or("").chars().count();
+
+    Ok(Some(TreeNode {
+        id: 0,
+        key: None,
+        key_span: None,
+        node_type: NodeType::Json(JsonType::Array),
+        value_preview: format!("[ {} records ]", children.len()),
+        path: "$".to_string(),
+        // The synthetic root spans the whole original document, BOM included:
+        // it contains every record, and its start stays at 0 so selecting the
+        // root highlights from the very first byte of the file.
+        span: JsonSpan::new(
+            0,
+            source.len(),
+            1,
+            1,
+            total_lines,
+            last_line_len + 1,
+        ),
+        children,
+    }))
 }

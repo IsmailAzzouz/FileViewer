@@ -1,14 +1,24 @@
 //! JSON format module providing parsing, formatting, and syntax highlighting.
+//!
+//! Four dialects share this module: strict RFC 8259 JSON, JSON with Comments,
+//! and JSON Lines all parse into the same format-agnostic
+//! [`TreeNode`](crate::formats::node::TreeNode) model with
+//! [`JsonType`] leaves, so consumers never branch on dialect.
 
 pub mod formatter;
 pub mod model;
 pub mod parser;
 pub mod syntax;
 
-pub use formatter::{format_json, minify_json};
+pub use formatter::{
+    format_json, format_jsonc, format_jsonl, minify_json, minify_jsonc, minify_jsonl,
+};
 pub use model::{JsonSpan, JsonType};
-pub use parser::{build_diagnostic, JsonDiagnostic, JsonParser, MAX_PARSE_DEPTH};
-pub use syntax::{tokenize_json_line, StyledSegment};
+pub use parser::{
+    build_diagnostic, parse_jsonc, parse_jsonl, JsonDiagnostic, JsonDialect, JsonParser,
+    MAX_PARSE_DEPTH,
+};
+pub use syntax::{tokenize_json_line, tokenize_jsonc_line, StyledSegment};
 
 use crate::formats::node::TreeNode;
 

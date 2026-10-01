@@ -2,7 +2,7 @@
 
 use super::buffer::TextSnapshot;
 use super::wrap::VisualRow;
-use crate::formats::json::tokenize_json_line;
+use crate::formats::json::{tokenize_json_line, tokenize_jsonc_line};
 use crate::formats::toml::tokenize_toml_line;
 use crate::formats::FileFormat;
 use crate::theme::{
@@ -240,6 +240,9 @@ fn render_editor_row(
     // Code Content with Syntax Highlighting for this visual slice
     let tokens = match doc_format {
         FileFormat::Json => tokenize_json_line(content),
+        // JSONC is a superset of JSON, and JSON Lines records are plain JSON, so
+        // the comment-aware tokenizer serves both without altering their text.
+        FileFormat::JsonC | FileFormat::JsonL => tokenize_jsonc_line(content),
         FileFormat::Toml => tokenize_toml_line(content),
     };
     let mut code_area = div()
