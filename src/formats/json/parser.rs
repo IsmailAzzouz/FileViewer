@@ -3,7 +3,8 @@
 //! Implements RFC 8259 compliant parsing while preserving start and end byte
 //! offsets, lines, and columns for all keys, values, objects, and arrays.
 
-use super::model::{JsonSpan, JsonTreeNode, JsonType};
+use super::model::{JsonSpan, JsonType};
+use crate::formats::node::{NodeType, TreeNode};
 
 /// Diagnostic information about a JSON parsing error.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -585,8 +586,7 @@ impl<'a> Scanner<'a> {
 /// within the standard 1MB Windows thread stack limit.
 pub const MAX_PARSE_DEPTH: usize = 128;
 
-/// Recursive descent parser building the JsonTreeNode tree.
-/// Recursive descent parser building the JsonTreeNode tree.
+/// Recursive descent parser building the shared [`TreeNode`] tree.
 pub struct JsonParser<'a> {
     scanner: Scanner<'a>,
     current_token: Token,
@@ -611,11 +611,11 @@ impl<'a> JsonParser<'a> {
         })
     }
 
-    /// Parses the entire document into an optional root `JsonTreeNode`.
+    /// Parses the entire document into an optional root `TreeNode`.
     /// Returns Ok(None) if the document is completely empty or only whitespace.
     ///
     /// Complexity: O(N) where N is the length of the source document.
-    pub fn parse(mut self) -> Result<Option<JsonTreeNode>, JsonDiagnostic> {
+    pub fn parse(mut self) -> Result<Option<TreeNode>, JsonDiagnostic> {
         if self.current_token.kind == TokenKind::Eof {
             return Ok(None);
         }
@@ -648,7 +648,7 @@ impl<'a> JsonParser<'a> {
     fn parse_value(
         &mut self,
         key: Option<String>,
-    ) -> Result<Box<JsonTreeNode>, Box<JsonDiagnostic>> {
+    ) -> Result<Box<TreeNode>, Box<JsonDiagnostic>> {
         if self.depth >= MAX_PARSE_DEPTH {
             return Err(Box::new(build_diagnostic(
                 self.scanner.source,
@@ -677,11 +677,11 @@ impl<'a> JsonParser<'a> {
                         close_token.span.end_line,
                         close_token.span.end_col,
                     );
-                    return Ok(Box::new(JsonTreeNode {
+                    return Ok(Box::new(TreeNode {
                         id,
                         key,
                         key_span: None,
-                        json_type: JsonType::Object,
+                        node_type: NodeType::Json(JsonType::Object),
                         value_preview: "{ 0 items }".to_string(),
                         path: current_path,
                         span,
@@ -769,11 +769,11 @@ impl<'a> JsonParser<'a> {
                     close_token.span.end_col,
                 );
                 let preview = format!("{{ {} items }}", children.len());
-                Ok(Box::new(JsonTreeNode {
+                Ok(Box::new(TreeNode {
                     id,
                     key,
                     key_span: None,
-                    json_type: JsonType::Object,
+                    node_type: NodeType::Json(JsonType::Object),
                     value_preview: preview,
                     path: current_path,
                     span,
@@ -794,11 +794,11 @@ impl<'a> JsonParser<'a> {
                         close_token.span.end_line,
                         close_token.span.end_col,
                     );
-                    return Ok(Box::new(JsonTreeNode {
+                    return Ok(Box::new(TreeNode {
                         id,
                         key,
                         key_span: None,
-                        json_type: JsonType::Array,
+                        node_type: NodeType::Json(JsonType::Array),
                         value_preview: "[ 0 items ]".to_string(),
                         path: current_path,
                         span,
@@ -857,11 +857,11 @@ impl<'a> JsonParser<'a> {
                     close_token.span.end_col,
                 );
                 let preview = format!("[ {} items ]", children.len());
-                Ok(Box::new(JsonTreeNode {
+                Ok(Box::new(TreeNode {
                     id,
                     key,
                     key_span: None,
-                    json_type: JsonType::Array,
+                    node_type: NodeType::Json(JsonType::Array),
                     value_preview: preview,
                     path: current_path,
                     span,
@@ -872,11 +872,11 @@ impl<'a> JsonParser<'a> {
                 let token = self.advance()?;
                 if let TokenKind::String(val) = token.kind {
                     let preview = format!("\"{}\"", truncate_preview(&val, 32));
-                    Ok(Box::new(JsonTreeNode {
+                    Ok(Box::new(TreeNode {
                         id,
                         key,
                         key_span: None,
-                        json_type: JsonType::String,
+                        node_type: NodeType::Json(JsonType::String),
                         value_preview: preview,
                         path: current_path,
                         span: token.span,
@@ -889,11 +889,11 @@ impl<'a> JsonParser<'a> {
             TokenKind::Number(_) => {
                 let token = self.advance()?;
                 if let TokenKind::Number(val) = token.kind {
-                    Ok(Box::new(JsonTreeNode {
+                    Ok(Box::new(TreeNode {
                         id,
                         key,
                         key_span: None,
-                        json_type: JsonType::Number,
+                        node_type: NodeType::Json(JsonType::Number),
                         value_preview: val,
                         path: current_path,
                         span: token.span,
@@ -905,11 +905,11 @@ impl<'a> JsonParser<'a> {
             }
             TokenKind::True => {
                 let token = self.advance()?;
-                Ok(Box::new(JsonTreeNode {
+                Ok(Box::new(TreeNode {
                     id,
                     key,
                     key_span: None,
-                    json_type: JsonType::Boolean,
+                    node_type: NodeType::Json(JsonType::Boolean),
                     value_preview: "true".to_string(),
                     path: current_path,
                     span: token.span,
@@ -918,11 +918,11 @@ impl<'a> JsonParser<'a> {
             }
             TokenKind::False => {
                 let token = self.advance()?;
-                Ok(Box::new(JsonTreeNode {
+                Ok(Box::new(TreeNode {
                     id,
                     key,
                     key_span: None,
-                    json_type: JsonType::Boolean,
+                    node_type: NodeType::Json(JsonType::Boolean),
                     value_preview: "false".to_string(),
                     path: current_path,
                     span: token.span,
@@ -931,11 +931,11 @@ impl<'a> JsonParser<'a> {
             }
             TokenKind::Null => {
                 let token = self.advance()?;
-                Ok(Box::new(JsonTreeNode {
+                Ok(Box::new(TreeNode {
                     id,
                     key,
                     key_span: None,
-                    json_type: JsonType::Null,
+                    node_type: NodeType::Json(JsonType::Null),
                     value_preview: "null".to_string(),
                     path: current_path,
                     span: token.span,

@@ -1,15 +1,15 @@
-//! Diagnostics banner displaying JSON validation errors and snippets.
+//! Diagnostics banner displaying document validation errors and snippets.
 
-use crate::formats::json::JsonDiagnostic;
+use crate::formats::diagnostic::Diagnostic;
 use crate::theme::{
     BTN_BG_HOVER, BTN_PRIMARY_BG, BTN_PRIMARY_HOVER, BTN_PRIMARY_TEXT, RADIUS_MD, RADIUS_SM,
     STATUS_ERROR_BG, STATUS_ERROR_BORDER, STATUS_ERROR_TEXT, TEXT_PRIMARY,
 };
 use gpui::*;
 
-/// Renders a diagnostic banner when a JSON parse error is present.
+/// Renders a diagnostic banner when a parse error is present.
 pub fn render_diagnostics<V: 'static>(
-    diagnostic: &JsonDiagnostic,
+    diagnostic: &Diagnostic,
     cx: &mut Context<V>,
     on_jump: impl Fn(&mut V, &ClickEvent, &mut Window, &mut Context<V>) + 'static + Copy,
     on_dismiss: impl Fn(&mut V, &ClickEvent, &mut Window, &mut Context<V>) + 'static + Copy,
@@ -41,15 +41,16 @@ pub fn render_diagnostics<V: 'static>(
                                 .text_color(STATUS_ERROR_TEXT)
                                 .text_sm()
                                 .child(format!(
-                                    "JSON Syntax Error (Line {}, Col {})",
-                                    diagnostic.line, diagnostic.column
+                                    "Syntax Error (Line {}, Col {})",
+                                    diagnostic.line(),
+                                    diagnostic.column()
                                 )),
                         )
                         .child(
                             div()
                                 .text_xs()
                                 .text_color(TEXT_PRIMARY)
-                                .child(diagnostic.message.clone()),
+                                .child(diagnostic.message().to_string()),
                         ),
                 )
                 .child(
@@ -106,13 +107,13 @@ pub fn render_diagnostics<V: 'static>(
                 .child(
                     div()
                         .text_color(TEXT_PRIMARY)
-                        .child(diagnostic.context_snippet.clone()),
+                        .child(diagnostic.context_snippet().to_string()),
                 )
                 .child(
                     div()
                         .text_color(STATUS_ERROR_TEXT)
                         .font_weight(FontWeight::BOLD)
-                        .child(diagnostic.pointer.clone()),
+                        .child(diagnostic.pointer().to_string()),
                 ),
         )
 }

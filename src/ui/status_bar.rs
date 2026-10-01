@@ -1,6 +1,6 @@
 //! Status bar displaying document metadata, cursor position, and validation status.
 
-use crate::formats::json::JsonDiagnostic;
+use crate::formats::diagnostic::Diagnostic;
 use crate::theme::{
     BORDER_SUBTLE, RADIUS_SM, STATUS_BAR_HEIGHT, STATUS_ERROR_BG, STATUS_ERROR_BORDER,
     STATUS_ERROR_TEXT, STATUS_SUCCESS_BG, STATUS_SUCCESS_BORDER, STATUS_SUCCESS_TEXT, TEXT_MUTED,
@@ -19,8 +19,9 @@ pub struct StatusBarProps<'a> {
     pub line_count: usize,
     pub char_count: usize,
     pub selection_len: Option<usize>,
-    pub diagnostic: Option<&'a JsonDiagnostic>,
+    pub diagnostic: Option<&'a Diagnostic>,
     pub node_count: Option<usize>,
+    pub format_name: &'a str,
 }
 
 /// Renders the bottom status bar.
@@ -42,10 +43,11 @@ pub fn render_status_bar<V: 'static>(
             }
         }
         None => {
+            let untitled = format!("Untitled.{}", props.format_name.to_ascii_lowercase());
             if props.is_dirty {
-                "* Untitled.json".to_string()
+                format!("* {untitled}")
             } else {
-                "Untitled.json".to_string()
+                untitled
             }
         }
     };
@@ -78,6 +80,7 @@ pub fn render_status_bar<V: 'static>(
                     props.char_count == 0,
                     props.diagnostic,
                     props.node_count,
+                    props.format_name,
                     cx,
                     on_error_click,
                 ))
@@ -116,15 +119,17 @@ pub fn render_status_bar<V: 'static>(
                     div()
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(TEXT_PRIMARY)
-                        .child("JSON (UTF-8)"),
+                        .child(format!("{} (UTF-8)", props.format_name)),
                 ),
         )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_validation_badge<V: 'static>(
     is_empty: bool,
-    diagnostic: Option<&JsonDiagnostic>,
+    diagnostic: Option<&Diagnostic>,
     node_count: Option<usize>,
+    format_name: &str,
     cx: &mut Context<V>,
     on_error_click: impl Fn(&mut V, &ClickEvent, &mut Window, &mut Context<V>) + 'static + Copy,
 ) -> AnyElement {
@@ -148,7 +153,7 @@ fn render_validation_badge<V: 'static>(
             .text_color(STATUS_ERROR_TEXT)
             .rounded(RADIUS_SM)
             .cursor_pointer()
-            .child(format!("Invalid: Ln {}, Col {}", err.line, err.column))
+            .child(format!("Invalid: Ln {}, Col {}", err.line(), err.column()))
             .on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
                 on_error_click(this, event, window, cx);
             }))
@@ -165,7 +170,7 @@ fn render_validation_badge<V: 'static>(
             .border_color(STATUS_SUCCESS_BORDER)
             .text_color(STATUS_SUCCESS_TEXT)
             .rounded(RADIUS_SM)
-            .child(format!("Valid JSON{}", count_str))
+            .child(format!("Valid {}{}", format_name, count_str))
             .into_any_element()
     }
 }

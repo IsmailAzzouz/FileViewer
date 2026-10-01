@@ -1,7 +1,8 @@
-//! Tree view component for rendering the JSON hierarchical structure.
+//! Tree view component for rendering the hierarchical document structure.
 
-use super::{TreeRowData, TreeState};
-use crate::formats::json::{JsonSpan, JsonType};
+use super::{NodeType, TreeRowData, TreeState};
+use crate::formats::json::JsonSpan;
+use crate::formats::{json::JsonType, toml::TomlType};
 use crate::theme::{
     BORDER_SUBTLE, BTN_BG_HOVER, BTN_BG_NORMAL, RADIUS_SM, SELECTION_BG, SYNTAX_BOOLEAN,
     SYNTAX_KEY, SYNTAX_NULL, SYNTAX_NUMBER, SYNTAX_PUNCTUATION, SYNTAX_STRING, TEXT_MUTED,
@@ -10,7 +11,7 @@ use crate::theme::{
 use gpui::prelude::FluentBuilder;
 use gpui::*;
 
-/// Renders the JSON Tree panel with O(1) cached visible rows.
+/// Renders the document tree panel with O(1) cached visible rows.
 #[allow(clippy::too_many_arguments)]
 pub fn render_tree_view<V: 'static>(
     tree: &TreeState,
@@ -58,7 +59,7 @@ pub fn render_tree_view<V: 'static>(
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_xs()
                                 .text_color(TEXT_PRIMARY)
-                                .child("JSON Tree"),
+                                .child("Tree"),
                         )
                         .child(
                             div()
@@ -165,7 +166,7 @@ pub fn render_tree_view<V: 'static>(
                             .p_4()
                             .text_xs()
                             .text_color(TEXT_MUTED)
-                            .child("No JSON tree loaded"),
+                            .child("No tree loaded"),
                     )
                 })
                 .when(node_count > 0, |this| {
@@ -279,7 +280,7 @@ fn render_tree_node_row(
     }
 
     // Type Badge
-    row = row.child(render_type_badge(data.json_type));
+    row = row.child(render_type_badge(data.node_type));
 
     // Key (if property of object)
     if let Some(ref k) = data.key {
@@ -292,13 +293,7 @@ fn render_tree_node_row(
     }
 
     // Value preview
-    let val_color = match data.json_type {
-        JsonType::String => SYNTAX_STRING,
-        JsonType::Number => SYNTAX_NUMBER,
-        JsonType::Boolean => SYNTAX_BOOLEAN,
-        JsonType::Null => SYNTAX_NULL,
-        JsonType::Object | JsonType::Array => TEXT_MUTED,
-    };
+    let val_color = value_color(data.node_type);
 
     row = row.child(
         div()
@@ -309,14 +304,36 @@ fn render_tree_node_row(
     row.into_any_element()
 }
 
-fn render_type_badge(t: JsonType) -> AnyElement {
+/// Returns the syntax color used for a node's value preview.
+fn value_color(t: NodeType) -> Hsla {
+    match t {
+        NodeType::Json(JsonType::String) => SYNTAX_STRING,
+        NodeType::Json(JsonType::Number) => SYNTAX_NUMBER,
+        NodeType::Json(JsonType::Boolean) => SYNTAX_BOOLEAN,
+        NodeType::Json(JsonType::Null) => SYNTAX_NULL,
+        NodeType::Json(JsonType::Object | JsonType::Array) => TEXT_MUTED,
+        NodeType::Toml(TomlType::String) => SYNTAX_STRING,
+        NodeType::Toml(TomlType::Integer | TomlType::Float | TomlType::Datetime) => SYNTAX_NUMBER,
+        NodeType::Toml(TomlType::Boolean) => SYNTAX_BOOLEAN,
+        NodeType::Toml(TomlType::Table | TomlType::Array | TomlType::InlineTable) => TEXT_MUTED,
+    }
+}
+
+fn render_type_badge(t: NodeType) -> AnyElement {
     let (color, text) = match t {
-        JsonType::Object => (SYNTAX_PUNCTUATION, "{ }"),
-        JsonType::Array => (SYNTAX_PUNCTUATION, "[ ]"),
-        JsonType::String => (SYNTAX_STRING, "str"),
-        JsonType::Number => (SYNTAX_NUMBER, "num"),
-        JsonType::Boolean => (SYNTAX_BOOLEAN, "bool"),
-        JsonType::Null => (SYNTAX_NULL, "null"),
+        NodeType::Json(JsonType::Object) => (SYNTAX_PUNCTUATION, "{ }"),
+        NodeType::Json(JsonType::Array) => (SYNTAX_PUNCTUATION, "[ ]"),
+        NodeType::Json(JsonType::String) => (SYNTAX_STRING, "str"),
+        NodeType::Json(JsonType::Number) => (SYNTAX_NUMBER, "num"),
+        NodeType::Json(JsonType::Boolean) => (SYNTAX_BOOLEAN, "bool"),
+        NodeType::Json(JsonType::Null) => (SYNTAX_NULL, "null"),
+        NodeType::Toml(TomlType::Table | TomlType::InlineTable) => (SYNTAX_PUNCTUATION, "{ }"),
+        NodeType::Toml(TomlType::Array) => (SYNTAX_PUNCTUATION, "[ ]"),
+        NodeType::Toml(TomlType::String) => (SYNTAX_STRING, "str"),
+        NodeType::Toml(TomlType::Integer) => (SYNTAX_NUMBER, "int"),
+        NodeType::Toml(TomlType::Float) => (SYNTAX_NUMBER, "flt"),
+        NodeType::Toml(TomlType::Boolean) => (SYNTAX_BOOLEAN, "bool"),
+        NodeType::Toml(TomlType::Datetime) => (SYNTAX_NULL, "dt"),
     };
 
     div()

@@ -2,7 +2,8 @@ pub mod view;
 
 pub use view::render_tree_view;
 
-use crate::formats::json::{JsonSpan, JsonTreeNode, JsonType};
+use crate::formats::json::JsonSpan;
+use crate::formats::node::{NodeType, TreeNode};
 use gpui::{SharedString, UniformListScrollHandle};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -17,7 +18,7 @@ pub struct TreeRowData {
     pub depth: usize,
     pub has_children: bool,
     pub is_expanded: bool,
-    pub json_type: JsonType,
+    pub node_type: NodeType,
     pub key: Option<SharedString>,
     pub value_preview: SharedString,
 }
@@ -36,7 +37,7 @@ pub struct SymbolEntry {
 #[derive(Clone, Debug, Default)]
 pub struct TreeState {
     /// Root node of the parsed JSON tree.
-    root: Option<JsonTreeNode>,
+    root: Option<TreeNode>,
     /// Pre-computed total node count for O(1) status queries.
     total_node_count: usize,
     /// Set of expanded JSONPath strings.
@@ -78,7 +79,7 @@ impl TreeState {
     /// Auto-expands the first 2 levels on initial load.
     ///
     /// Complexity: O(N) where N is the total node count.
-    pub fn set_root(&mut self, root: Option<JsonTreeNode>) {
+    pub fn set_root(&mut self, root: Option<TreeNode>) {
         self.root = root;
         self.selected_id = None;
 
@@ -116,7 +117,7 @@ impl TreeState {
     }
 
     /// Returns a reference to the root node.
-    pub fn root(&self) -> Option<&JsonTreeNode> {
+    pub fn root(&self) -> Option<&TreeNode> {
         self.root.as_ref()
     }
 
@@ -335,7 +336,7 @@ impl TreeState {
     /// Flattens visible nodes based on expansion state and filter.
     ///
     /// Complexity: O(V) where V is the number of visible nodes.
-    pub fn visible_nodes(&self) -> Vec<(&JsonTreeNode, usize)> {
+    pub fn visible_nodes(&self) -> Vec<(&TreeNode, usize)> {
         let mut list = Vec::new();
         if let Some(ref root) = self.root {
             self.collect_visible_nodes(root, 0, &mut list);
@@ -356,7 +357,7 @@ impl TreeState {
 
     fn collect_visible_row_data(
         &self,
-        node: &JsonTreeNode,
+        node: &TreeNode,
         depth: usize,
         out: &mut Vec<TreeRowData>,
     ) {
@@ -372,7 +373,7 @@ impl TreeState {
                 depth,
                 has_children,
                 is_expanded,
-                json_type: node.json_type,
+                node_type: node.node_type,
                 key: node
                     .key
                     .as_ref()
@@ -397,7 +398,7 @@ impl TreeState {
                     depth,
                     has_children,
                     is_expanded,
-                    json_type: node.json_type,
+                    node_type: node.node_type,
                     key: node
                         .key
                         .as_ref()
@@ -413,9 +414,9 @@ impl TreeState {
 
     fn collect_visible_nodes<'a>(
         &'a self,
-        node: &'a JsonTreeNode,
+        node: &'a TreeNode,
         depth: usize,
-        out: &mut Vec<(&'a JsonTreeNode, usize)>,
+        out: &mut Vec<(&'a TreeNode, usize)>,
     ) {
         if self.filter_query.is_empty() {
             out.push((node, depth));
@@ -437,7 +438,7 @@ impl TreeState {
         }
     }
 
-    fn collect_all_paths(node: &JsonTreeNode, out: &mut HashSet<String>) {
+    fn collect_all_paths(node: &TreeNode, out: &mut HashSet<String>) {
         out.insert(node.path.clone());
         for child in &node.children {
             Self::collect_all_paths(child, out);
@@ -445,7 +446,7 @@ impl TreeState {
     }
 
     fn collect_symbols(
-        node: &JsonTreeNode,
+        node: &TreeNode,
         ancestors: &mut Vec<String>,
         symbols: &mut Vec<SymbolEntry>,
     ) {

@@ -3,6 +3,8 @@
 use super::buffer::TextSnapshot;
 use super::wrap::VisualRow;
 use crate::formats::json::tokenize_json_line;
+use crate::formats::toml::tokenize_toml_line;
+use crate::formats::FileFormat;
 use crate::theme::{
     BORDER_SUBTLE, BTN_BG_HOVER, BTN_BG_NORMAL, EDITOR_LINE_HEIGHT, ERROR_HIGHLIGHT_BG,
     GUTTER_WIDTH, LINE_ACTIVE_BG, RADIUS_SM, SELECTION_BG, STATUS_ERROR_TEXT, TEXT_MUTED,
@@ -27,6 +29,7 @@ pub struct EditorProps<'a> {
     pub search_query: &'a str,
     pub match_count: usize,
     pub current_match_idx: usize,
+    pub format: FileFormat,
 }
 
 /// Renders the complete editor view.
@@ -47,6 +50,7 @@ pub fn render_editor<V: 'static>(
     let cursor_offset = props.cursor_offset;
     let active_selection = props.selection;
     let error_line = props.error_line;
+    let doc_format = props.format;
     let focus_handle = props.focus_handle.clone();
     let container_mouse_up = on_row_mouse_up.clone();
 
@@ -104,6 +108,7 @@ pub fn render_editor<V: 'static>(
                                             cursor_offset,
                                             active_selection,
                                             error_line,
+                                            doc_format,
                                             on_row_mouse_down.clone(),
                                             on_row_mouse_move.clone(),
                                             on_row_mouse_up.clone(),
@@ -135,6 +140,7 @@ fn render_editor_row(
     cursor_offset: usize,
     selection: Option<(usize, usize)>,
     error_line: Option<usize>,
+    doc_format: FileFormat,
     on_row_mouse_down: impl Fn(usize, &MouseDownEvent, &mut Window, &mut App) + 'static + Clone,
     on_row_mouse_move: impl Fn(usize, &MouseMoveEvent, &mut Window, &mut App) + 'static + Clone,
     on_row_mouse_up: impl Fn(usize, &MouseUpEvent, &mut Window, &mut App) + 'static + Clone,
@@ -232,7 +238,10 @@ fn render_editor_row(
         .child(gutter_str);
 
     // Code Content with Syntax Highlighting for this visual slice
-    let tokens = tokenize_json_line(content);
+    let tokens = match doc_format {
+        FileFormat::Json => tokenize_json_line(content),
+        FileFormat::Toml => tokenize_toml_line(content),
+    };
     let mut code_area = div()
         .flex_1()
         .h_full()

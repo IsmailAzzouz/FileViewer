@@ -1,4 +1,5 @@
 use file_viewer::formats::json::{format_json, minify_json, parse_json, JsonType};
+use file_viewer::formats::node::NodeType;
 
 #[test]
 fn test_parse_empty_and_whitespace() {
@@ -9,23 +10,23 @@ fn test_parse_empty_and_whitespace() {
 #[test]
 fn test_parse_primitives() {
     let node = parse_json("true").unwrap().unwrap();
-    assert_eq!(node.json_type, JsonType::Boolean);
+    assert_eq!(node.node_type, NodeType::Json(JsonType::Boolean));
     assert_eq!(node.value_preview, "true");
 
     let node = parse_json("false").unwrap().unwrap();
-    assert_eq!(node.json_type, JsonType::Boolean);
+    assert_eq!(node.node_type, NodeType::Json(JsonType::Boolean));
     assert_eq!(node.value_preview, "false");
 
     let node = parse_json("null").unwrap().unwrap();
-    assert_eq!(node.json_type, JsonType::Null);
+    assert_eq!(node.node_type, NodeType::Json(JsonType::Null));
     assert_eq!(node.value_preview, "null");
 
     let node = parse_json("42.5e2").unwrap().unwrap();
-    assert_eq!(node.json_type, JsonType::Number);
+    assert_eq!(node.node_type, NodeType::Json(JsonType::Number));
     assert_eq!(node.value_preview, "42.5e2");
 
     let node = parse_json("\"Hello \\n World!\"").unwrap().unwrap();
-    assert_eq!(node.json_type, JsonType::String);
+    assert_eq!(node.node_type, NodeType::Json(JsonType::String));
     assert_eq!(node.value_preview, "\"Hello \n World!\"");
 }
 
@@ -39,17 +40,17 @@ fn test_parse_complex_object_and_spans() {
 }"#;
 
     let root = parse_json(source).unwrap().unwrap();
-    assert_eq!(root.json_type, JsonType::Object);
+    assert_eq!(root.node_type, NodeType::Json(JsonType::Object));
     assert_eq!(root.children.len(), 4);
 
     let name_node = &root.children[0];
     assert_eq!(name_node.key.as_deref(), Some("name"));
-    assert_eq!(name_node.json_type, JsonType::String);
+    assert_eq!(name_node.node_type, NodeType::Json(JsonType::String));
     assert_eq!(name_node.path, "$.name");
 
     let features_node = &root.children[2];
     assert_eq!(features_node.key.as_deref(), Some("features"));
-    assert_eq!(features_node.json_type, JsonType::Array);
+    assert_eq!(features_node.node_type, NodeType::Json(JsonType::Array));
     assert_eq!(features_node.children.len(), 2);
     assert_eq!(features_node.children[0].path, "$.features[0]");
     assert_eq!(features_node.children[1].path, "$.features[1]");
@@ -69,13 +70,13 @@ fn test_node_lookup_by_offset() {
     let text_offset = source.find("text").unwrap();
     let found = root.find_node_at_offset(text_offset).unwrap();
     assert_eq!(found.key.as_deref(), Some("b"));
-    assert_eq!(found.json_type, JsonType::String);
+    assert_eq!(found.node_type, NodeType::Json(JsonType::String));
 
     // Offset inside 10
     let num_offset = source.find("10").unwrap();
     let found = root.find_node_at_offset(num_offset).unwrap();
     assert_eq!(found.key.as_deref(), Some("a"));
-    assert_eq!(found.json_type, JsonType::Number);
+    assert_eq!(found.node_type, NodeType::Json(JsonType::Number));
 }
 
 #[test]
@@ -179,11 +180,11 @@ fn test_recursion_depth_limit() {
 fn test_utf8_bom_stripping() {
     let bom_json = "\u{FEFF}{\"valid\": true, \"count\": 42}";
     let root = parse_json(bom_json).unwrap().unwrap();
-    assert_eq!(root.json_type, JsonType::Object);
+    assert_eq!(root.node_type, NodeType::Json(JsonType::Object));
     assert_eq!(root.children.len(), 2);
 
     let bom_array = "\u{FEFF}[1, 2, 3]";
     let arr = parse_json(bom_array).unwrap().unwrap();
-    assert_eq!(arr.json_type, JsonType::Array);
+    assert_eq!(arr.node_type, NodeType::Json(JsonType::Array));
     assert_eq!(arr.children.len(), 3);
 }

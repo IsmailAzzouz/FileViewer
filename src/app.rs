@@ -5,7 +5,9 @@ use crate::editor::{
     char_index_at_x, char_index_to_byte_offset, compute_visual_rows, find_visual_row_by_offset,
     render_editor, EditorProps, TextBuffer, VisualRow,
 };
-use crate::formats::json::{format_json, minify_json, parse_json, JsonDiagnostic, JsonSpan};
+use crate::formats::diagnostic::{Diagnostic, FileFormat};
+use crate::formats::json::{format_json, minify_json, parse_json, JsonSpan};
+use crate::formats::toml::{format_toml, minify_toml, parse_toml};
 use crate::theme::{
     BG_APP, CHAR_WIDTH, CODE_PADDING_LEFT, DEFAULT_WRAP_COLUMN, GUTTER_WIDTH, TEXT_MUTED,
     TREE_PANEL_WIDTH,
@@ -58,6 +60,42 @@ pub const SAMPLE_JSON: &str = r#"{
   ]
 }"#;
 
+/// Default rich sample TOML demonstrating the common TOML constructs.
+pub const SAMPLE_TOML: &str = r#"# FileViewer configuration
+project = "FileViewer"
+version = "1.0.0"
+active = true
+
+[stats]
+fps = 60
+memory_mb = 14.5
+threads = 4
+
+features = [
+  "Native GPUI rendering",
+  "Instant TOML formatting",
+  "Precise syntax validation",
+  "Two-way tree synchronization",
+]
+
+[author]
+name = "Rust Engineer"
+email = "engineer@example.com"
+verified = true
+
+[[configurations]]
+id = 1
+theme = "dark"
+font_size = 13
+auto_save = false
+
+[[configurations]]
+id = 2
+theme = "system"
+font_size = 14
+auto_save = true
+"#;
+
 /// The root application view entity.
 pub struct AppView {
     /// Document text buffer.
@@ -66,10 +104,12 @@ pub struct AppView {
     tree: TreeState,
     /// Active file path on disk (if any).
     file_path: Option<PathBuf>,
+    /// Format of the active document.
+    file_format: FileFormat,
     /// Whether the document has unsaved modifications.
     is_dirty: bool,
-    /// Current JSON validation diagnostic if syntax is invalid.
-    diagnostic: Option<JsonDiagnostic>,
+    /// Current validation diagnostic if syntax is invalid.
+    diagnostic: Option<Diagnostic>,
     /// Whether the Tree View panel is visible.
     is_tree_visible: bool,
     /// Whether the Find/Search bar is visible.
@@ -105,6 +145,7 @@ impl AppView {
             buffer: TextBuffer::new(""),
             tree: TreeState::new(),
             file_path: None,
+            file_format: FileFormat::default(),
             is_dirty: false,
             diagnostic: None,
             is_tree_visible: true,
@@ -182,6 +223,7 @@ impl AppView {
         self.parse_generation += 1;
         let gen = self.parse_generation;
         let text_arc: Arc<str> = self.buffer.snapshot().text().into();
+        let format = self.file_format;
 
         cx.spawn(async move |this, cx| {
             cx.background_executor()
@@ -197,7 +239,12 @@ impl AppView {
 
             let parse_result = cx
                 .background_executor()
-                .spawn(async move { parse_json(&text_arc) })
+                .spawn(async move {
+                    match format {
+                        FileFormat::Json => parse_json(&text_arc).map_err(Diagnostic::Json),
+                        FileFormat::Toml => parse_toml(&text_arc).map_err(Diagnostic::Toml),
+                    }
+                })
                 .await;
 
             let _ = this.update(cx, |view, cx| {
@@ -224,6 +271,7 @@ impl AppView {
     /// Complexity: O(N) where N is the length of `content`.
     pub fn load_file(&mut self, path: PathBuf, content: String, cx: &mut Context<Self>) {
         let clean = content.strip_prefix('\u{FEFF}').unwrap_or(&content);
+        self.file_format = FileFormat::from_path(&path);
         self.tree.clear();
         self.buffer.set_text(clean);
         self.rebuild_visual_rows();
@@ -234,12 +282,15 @@ impl AppView {
         cx.notify();
     }
 
-    /// Loads sample JSON data into the editor.
+    /// Loads sample data for the active format into the editor.
     ///
     /// Complexity: O(N) where N is the length of the sample data.
     pub fn load_sample(&mut self, cx: &mut Context<Self>) {
         self.tree.clear();
-        self.buffer.set_text(SAMPLE_JSON);
+        match self.file_format {
+            FileFormat::Json => self.buffer.set_text(SAMPLE_JSON),
+            FileFormat::Toml => self.buffer.set_text(SAMPLE_TOML),
+        }
         self.rebuild_visual_rows();
         self.file_path = None;
         self.is_dirty = false;
@@ -272,7 +323,12 @@ impl AppView {
             return;
         }
 
-        match parse_json(text) {
+        let result = match self.file_format {
+            FileFormat::Json => parse_json(text).map_err(Diagnostic::Json),
+            FileFormat::Toml => parse_toml(text).map_err(Diagnostic::Toml),
+        };
+
+        match result {
             Ok(root_node) => {
                 self.diagnostic = None;
                 self.tree.set_root(root_node);
@@ -293,14 +349,20 @@ impl AppView {
             return;
         }
 
-        match format_json(text, 2) {
+        let result = match self.file_format {
+            FileFormat::Json => format_json(text, 2).map_err(Diagnostic::Json),
+            FileFormat::Toml => format_toml(text, 2).map_err(Diagnostic::Toml),
+        };
+
+        match result {
             Ok(formatted) => {
                 if formatted != text {
                     self.buffer.set_text(&formatted);
                     self.rebuild_visual_rows();
                     self.is_dirty = true;
                     self.parse_and_sync(cx);
-                    self.status_message = Some("Formatted JSON".to_string());
+                    self.status_message =
+                        Some(format!("Formatted {}", self.file_format.name()));
                     cx.notify();
                 }
             }
@@ -320,14 +382,20 @@ impl AppView {
             return;
         }
 
-        match minify_json(text) {
+        let result = match self.file_format {
+            FileFormat::Json => minify_json(text).map_err(Diagnostic::Json),
+            FileFormat::Toml => minify_toml(text).map_err(Diagnostic::Toml),
+        };
+
+        match result {
             Ok(minified) => {
                 if minified != text {
                     self.buffer.set_text(&minified);
                     self.rebuild_visual_rows();
                     self.is_dirty = true;
                     self.parse_and_sync(cx);
-                    self.status_message = Some("Minified JSON".to_string());
+                    self.status_message =
+                        Some(format!("Minified {}", self.file_format.name()));
                     cx.notify();
                 }
             }
@@ -430,7 +498,8 @@ impl AppView {
     /// Opens native save file dialog to specify destination path.
     pub fn save_file_as_dialog(&mut self, cx: &mut Context<Self>) {
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let prompt = cx.prompt_for_new_path(&cwd, Some("document.json"));
+        let default_name = format!("document.{}", self.file_format.default_extension());
+        let prompt = cx.prompt_for_new_path(&cwd, Some(&default_name));
 
         cx.spawn(async move |this, cx| {
             if let Ok(Ok(Some(path))) = prompt.await {
@@ -438,6 +507,7 @@ impl AppView {
                     match std::fs::write(&path, view.buffer.text()) {
                         Ok(_) => {
                             view.file_path = Some(path.clone());
+                            view.file_format = FileFormat::from_path(&path);
                             view.is_dirty = false;
                             let filename =
                                 path.file_name().and_then(|n| n.to_str()).unwrap_or("file");
@@ -458,10 +528,10 @@ impl AppView {
     /// Jumps the editor cursor to the current parse error line.
     pub fn jump_to_error(&mut self, cx: &mut Context<Self>) {
         if let Some(ref diag) = self.diagnostic.clone() {
-            let offset = self.buffer.line_col_to_offset(diag.line, diag.column);
+            let offset = self.buffer.line_col_to_offset(diag.line(), diag.column());
             self.buffer.set_cursor(offset);
             self.scroll_handle
-                .scroll_to_item(diag.line.saturating_sub(1), ScrollStrategy::Center);
+                .scroll_to_item(diag.line().saturating_sub(1), ScrollStrategy::Center);
             cx.notify();
         }
     }
@@ -1094,7 +1164,7 @@ impl Render for AppView {
         } else {
             None
         };
-        let error_line = self.diagnostic.as_ref().map(|d| d.line);
+        let error_line = self.diagnostic.as_ref().map(|d| d.line());
         let file_path_str = self.file_path.as_ref().and_then(|p| p.to_str());
 
         // Prepare toolbar properties
@@ -1119,6 +1189,7 @@ impl Render for AppView {
             selection_len,
             diagnostic: self.diagnostic.as_ref(),
             node_count,
+            format_name: self.file_format.name(),
         };
 
         // Prepare editor properties with allocation-free snapshot
@@ -1136,6 +1207,7 @@ impl Render for AppView {
             search_query: &self.search_query,
             match_count: self.search_matches.len(),
             current_match_idx: self.current_match_idx,
+            format: self.file_format,
         };
 
         let view_entity = cx.entity().clone();
@@ -1201,7 +1273,7 @@ impl Render for AppView {
                                 .justify_center()
                                 .text_sm()
                                 .text_color(TEXT_MUTED)
-                                .child("Loading JSON document..."),
+                                .child(format!("Loading {} document...", self.file_format.name())),
                         )
                     })
                     .when(!self.is_loading && !has_content, |this| {

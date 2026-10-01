@@ -1,5 +1,6 @@
 use file_viewer::editor::TextBuffer;
 use file_viewer::formats::json::{format_json, parse_json, JsonType};
+use file_viewer::formats::node::NodeType;
 use file_viewer::tree::TreeState;
 
 #[test]
@@ -99,7 +100,7 @@ fn test_deeply_nested_json() {
     }
 
     let root = parse_json(&source).unwrap().unwrap();
-    assert_eq!(root.json_type, JsonType::Object);
+    assert_eq!(root.node_type, NodeType::Json(JsonType::Object));
 
     // Count depth
     let mut current = &root;
@@ -109,7 +110,7 @@ fn test_deeply_nested_json() {
         current = &current.children[0];
     }
     assert_eq!(depth, 10);
-    assert_eq!(current.json_type, JsonType::Number);
+    assert_eq!(current.node_type, NodeType::Json(JsonType::Number));
     assert_eq!(current.value_preview, "123");
 }
 
@@ -120,12 +121,12 @@ fn test_empty_containers() {
     assert_eq!(root.children.len(), 2);
 
     let obj = &root.children[0];
-    assert_eq!(obj.json_type, JsonType::Object);
+    assert_eq!(obj.node_type, NodeType::Json(JsonType::Object));
     assert!(obj.children.is_empty());
     assert_eq!(obj.value_preview, "{ 0 items }");
 
     let arr = &root.children[1];
-    assert_eq!(arr.json_type, JsonType::Array);
+    assert_eq!(arr.node_type, NodeType::Json(JsonType::Array));
     assert!(arr.children.is_empty());
     assert_eq!(arr.value_preview, "[ 0 items ]");
 }
