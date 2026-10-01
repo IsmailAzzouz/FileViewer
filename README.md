@@ -8,13 +8,23 @@ FileViewer is a desktop application for viewing files, built using the GPUI fram
 
 ## Supported Formats
 
-| Format | Parse | Format / Minify | Syntax Highlighting | Tree View |
-| ------ | :---: | :--------------: | :-----------------: | :-------: |
-| JSON   |  ✅   |       ✅        |          ✅          |     ✅     |
-| TOML   |  ✅   |       ✅        |          ✅          |     ✅     |
+| Format | Extensions | Parse | Format / Minify | Syntax Highlighting | Tree View |
+| ------ | ----------- | :---: | :--------------: | :-----------------: | :-------: |
+| JSON   | `.json`     |  ✅   |       ✅        |          ✅          |     ✅     |
+| JSONC  | `.jsonc`    |  ✅   |       ✅        |          ✅          |     ✅     |
+| JSONL  | `.jsonl`, `.ndjson` |  ✅   |       ✅        |          ✅          |     ✅     |
+| TOML   | `.toml`     |  ✅   |       ✅        |          ✅          |     ✅     |
 
 The format is detected from the file extension when a document is opened, and
 falls back to JSON for anything unrecognized.
+
+JSONC documents accept `//` and `/* */` comments and allow trailing commas.
+JSONL documents are parsed as a sequence of values, one per line, and appear in
+the tree as a synthetic root array with one entry per value. Formatting and
+minification for both are line-oriented and never reserialize the value tree,
+so comments and blank lines survive round-tripping. UTF-8 BOMs are stripped
+before formatting, and JSONL source spans are offset by the BOM length so
+highlighting and cursor sync still land on the right text.
 
 ## Features
 
@@ -27,7 +37,6 @@ falls back to JSON for anything unrecognized.
 - Cross-platform support (Linux, macOS, Windows)
 
 ## Keyboard Shortcuts
-
 | Shortcut           | Action                     |
 | ------------------ | -------------------------- |
 | `Ctrl+O`           | Open a file                |
@@ -36,15 +45,19 @@ falls back to JSON for anything unrecognized.
 | `Ctrl+F`           | Find                       |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo               |
 | `Ctrl+T`           | Toggle tree panel          |
+| `Ctrl+Shift+E`     | Expand all tree nodes       |
+| `Ctrl+Shift+C`     | Collapse all tree nodes     |
 | `Alt+Z`            | Toggle word wrap           |
 | `Alt+Down` / `Alt+Up` | Jump to next / previous symbol |
 
 ## Getting Started
 
-| `Ctrl+T`           | Toggle tree panel          |
-| `Ctrl+Shift+E`     | Expand all tree nodes       |
-| `Ctrl+Shift+C`     | Collapse all tree nodes     |
-| `Alt+Z`            | Toggle word wrap           |
+Build the project, then open a file by passing its path as an argument or with
+`Ctrl+O`:
+
+```bash
+cargo run --release -- config.jsonc
+```
 
 ### Building
 
