@@ -2,7 +2,7 @@
 
 use super::{NodeType, TreeRowData, TreeState};
 use crate::formats::json::JsonSpan;
-use crate::formats::{json::JsonType, toml::TomlType};
+use crate::formats::{json::JsonType, toml::TomlType, yaml::YamlType};
 use crate::theme::{
     BORDER_SUBTLE, BTN_BG_HOVER, BTN_BG_NORMAL, RADIUS_SM, SELECTION_BG, SYNTAX_BOOLEAN,
     SYNTAX_KEY, SYNTAX_NULL, SYNTAX_NUMBER, SYNTAX_PUNCTUATION, SYNTAX_STRING, TEXT_MUTED,
@@ -316,6 +316,11 @@ fn value_color(t: NodeType) -> Hsla {
         NodeType::Toml(TomlType::Integer | TomlType::Float | TomlType::Datetime) => SYNTAX_NUMBER,
         NodeType::Toml(TomlType::Boolean) => SYNTAX_BOOLEAN,
         NodeType::Toml(TomlType::Table | TomlType::Array | TomlType::InlineTable) => TEXT_MUTED,
+        NodeType::Yaml(YamlType::String) => SYNTAX_STRING,
+        NodeType::Yaml(YamlType::Integer | YamlType::Float) => SYNTAX_NUMBER,
+        NodeType::Yaml(YamlType::Boolean) => SYNTAX_BOOLEAN,
+        NodeType::Yaml(YamlType::Null) => SYNTAX_NULL,
+        NodeType::Yaml(YamlType::Mapping | YamlType::Sequence) => TEXT_MUTED,
     }
 }
 
@@ -334,6 +339,13 @@ fn render_type_badge(t: NodeType) -> AnyElement {
         NodeType::Toml(TomlType::Float) => (SYNTAX_NUMBER, "flt"),
         NodeType::Toml(TomlType::Boolean) => (SYNTAX_BOOLEAN, "bool"),
         NodeType::Toml(TomlType::Datetime) => (SYNTAX_NULL, "dt"),
+        NodeType::Yaml(YamlType::Mapping) => (SYNTAX_PUNCTUATION, "{ }"),
+        NodeType::Yaml(YamlType::Sequence) => (SYNTAX_PUNCTUATION, "[ ]"),
+        NodeType::Yaml(YamlType::String) => (SYNTAX_STRING, "str"),
+        NodeType::Yaml(YamlType::Integer) => (SYNTAX_NUMBER, "int"),
+        NodeType::Yaml(YamlType::Float) => (SYNTAX_NUMBER, "flt"),
+        NodeType::Yaml(YamlType::Boolean) => (SYNTAX_BOOLEAN, "bool"),
+        NodeType::Yaml(YamlType::Null) => (SYNTAX_NULL, "null"),
     };
 
     div()

@@ -1,0 +1,171 @@
+# FileViewer — YAML feature tour
+# Exercises every construct the parser handles. Open this file to sanity-check
+# the tree, the editor sync, Format, and Minify.
+
+# ---------------------------------------------------------------------------
+# Anchors and aliases: an alias expands to a clone of the anchored node.
+# ---------------------------------------------------------------------------
+defaults: &defaults
+  adapter: postgres
+  host: localhost
+  port: 5432
+  timeout: 30
+
+development:
+  <<: *defaults      # merge key: splices the anchored mapping in
+  host: dev.local    # ...but a key written here wins over the merged one
+
+staging:
+  <<: *defaults      # no local override, so host stays "localhost"
+  port: 15432
+
+sandbox:
+  <<: *defaults
+  <<: *defaults      # a second merge of the same anchor is harmless
+
+# An alias can stand in for a scalar, not just a collection.
+version_tag: &tag "v1.4.0"
+current_version: *tag
+
+# ---------------------------------------------------------------------------
+# Scalar types. Timestamps stay strings, matching the other formats.
+# ---------------------------------------------------------------------------
+scalars:
+  null_value: null
+  tilde_null: ~
+  implicit_null:
+  true_value: true
+  false_value: false
+  yaml_one_one_bools: [yes, no, on, off]
+  int_value: 42
+  negative_int: -17
+  float_value: 3.14159
+  exponent: 1.2e+10
+  hex_int: 0xFF
+  quoted_number: "123"    # stays a string, quotes force it
+  released: 2026-10-02     # timestamp-style, deliberately a String
+
+# ---------------------------------------------------------------------------
+# Block scalars, with the chomping indicators.
+# ---------------------------------------------------------------------------
+script: |
+  #!/usr/bin/env bash
+  set -euo pipefail
+  for f in *.yml; do
+    echo "checking ${f}"
+  done
+
+folded: >-
+  A folded scalar joins these lines into
+  one string, and "-" strips the
+  trailing newline.
+
+keep_ends: |+
+  Trailing newlines are kept here.
+
+
+  (that blank line above is literal)
+
+# An explicit indentation indicator forces a fixed content indent.
+fixed_indent: |2
+    four spaces of literal indent
+
+# ---------------------------------------------------------------------------
+# Flow collections, compact and nested.
+# ---------------------------------------------------------------------------
+flow:
+  compact_map: {k:1,v:2,w:3}
+  spaced_map: {k: 1, v: 2}
+  compact_seq: [1,2,3]
+  nested: {outer: {inner: [1, {deep: true}]}}
+  url_value: http://example.com:8080/x   # a colon in a value, not a key
+
+# ---------------------------------------------------------------------------
+# Sequences. Note the two legal indent styles.
+# ---------------------------------------------------------------------------
+items:
+  - first
+  - second
+  - third
+
+seq_at_key_column:
+- aligned with its key
+- also legal YAML
+
+records:
+  - name: alpha
+    port: 8080
+  - name: beta
+    port: 9090
+  - name: gamma
+    nested:
+      - 1
+      - 2
+
+# ---------------------------------------------------------------------------
+# Quoted scalars and escapes.
+# ---------------------------------------------------------------------------
+strings:
+  double_quoted: "he said \"hi\" and left"
+  single_quoted: 'it''s fine'
+  hash_inside_quotes: "not # a comment"
+  colon_inside_quotes: "key: value"
+  unicode: "café ☕"
+  multiline_double: "wrapped \
+    onto the next line"
+
+# ---------------------------------------------------------------------------
+# Tags are recorded in the preview; they do not change node typing.
+# ---------------------------------------------------------------------------
+tags:
+  forced_string: !!str 123
+  forced_int: !!int "456"
+  custom: !Custom value
+
+# ---------------------------------------------------------------------------
+# Comments, blank lines, and deep nesting.
+# ---------------------------------------------------------------------------
+# A comment before the key.
+spaced_section:
+
+  # A comment inside a mapping.
+  key: value    # A trailing comment.
+
+nested:
+  level1:
+    level2:
+      level3:
+        level4:
+          level5:
+            level6:
+              leaf: found
+
+# A merge into a sequence of mappings.
+matrix: &matrix
+  - id: 1
+    label: one
+  - id: 2
+    label: two
+
+matrix_copy: *matrix
+
+# ---------------------------------------------------------------------------
+# Multi-document stream: each document becomes a child of a synthetic array.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: file-viewer-svc
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: ConfigMap
+data:
+  LOG_LEVEL: info
+  RUST_BACKTRACE: "1"
+...

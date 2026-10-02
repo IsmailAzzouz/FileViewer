@@ -7,6 +7,7 @@
 
 use crate::formats::json::{JsonSpan, JsonType};
 use crate::formats::toml::TomlType;
+use crate::formats::yaml::YamlType;
 
 /// Format-specific value type of a [`TreeNode`].
 ///
@@ -16,6 +17,7 @@ use crate::formats::toml::TomlType;
 pub enum NodeType {
     Json(JsonType),
     Toml(TomlType),
+    Yaml(YamlType),
 }
 
 impl NodeType {
@@ -24,6 +26,7 @@ impl NodeType {
         match self {
             NodeType::Json(t) => t.type_name(),
             NodeType::Toml(t) => t.type_name(),
+            NodeType::Yaml(t) => t.type_name(),
         }
     }
 
@@ -32,6 +35,7 @@ impl NodeType {
         match self {
             NodeType::Json(t) => t.badge_text(),
             NodeType::Toml(t) => t.badge_text(),
+            NodeType::Yaml(t) => t.badge_text(),
         }
     }
 
@@ -43,6 +47,7 @@ impl NodeType {
                 t,
                 TomlType::Table | TomlType::Array | TomlType::InlineTable
             ),
+            NodeType::Yaml(t) => matches!(t, YamlType::Mapping | YamlType::Sequence),
         }
     }
 }

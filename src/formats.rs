@@ -8,6 +8,7 @@ pub mod diagnostic;
 pub mod json;
 pub mod node;
 pub mod toml;
+pub mod yaml;
 
 pub use diagnostic::{Diagnostic, FileFormat};
 pub use node::{NodeType, TreeNode};

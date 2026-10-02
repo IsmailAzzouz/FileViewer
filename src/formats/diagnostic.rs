@@ -2,12 +2,14 @@
 
 use crate::formats::json::JsonDiagnostic;
 use crate::formats::toml::TomlDiagnostic;
+use crate::formats::yaml::YamlDiagnostic;
 
 /// A parse or format diagnostic from any supported document format.
 #[derive(Debug, Clone)]
 pub enum Diagnostic {
     Json(JsonDiagnostic),
     Toml(TomlDiagnostic),
+    Yaml(YamlDiagnostic),
 }
 
 impl Diagnostic {
@@ -16,6 +18,7 @@ impl Diagnostic {
         match self {
             Diagnostic::Json(d) => d.line,
             Diagnostic::Toml(d) => d.line,
+            Diagnostic::Yaml(d) => d.line,
         }
     }
 
@@ -24,6 +27,7 @@ impl Diagnostic {
         match self {
             Diagnostic::Json(d) => d.column,
             Diagnostic::Toml(d) => d.column,
+            Diagnostic::Yaml(d) => d.column,
         }
     }
 
@@ -32,6 +36,7 @@ impl Diagnostic {
         match self {
             Diagnostic::Json(d) => &d.message,
             Diagnostic::Toml(d) => &d.message,
+            Diagnostic::Yaml(d) => &d.message,
         }
     }
 
@@ -40,6 +45,7 @@ impl Diagnostic {
         match self {
             Diagnostic::Json(d) => &d.context_snippet,
             Diagnostic::Toml(d) => &d.context_snippet,
+            Diagnostic::Yaml(d) => &d.context_snippet,
         }
     }
 
@@ -48,6 +54,7 @@ impl Diagnostic {
         match self {
             Diagnostic::Json(d) => &d.pointer,
             Diagnostic::Toml(d) => &d.pointer,
+            Diagnostic::Yaml(d) => &d.pointer,
         }
     }
 }
@@ -57,6 +64,7 @@ impl std::fmt::Display for Diagnostic {
         match self {
             Diagnostic::Json(d) => write!(f, "{}", d),
             Diagnostic::Toml(d) => write!(f, "{}", d),
+            Diagnostic::Yaml(d) => write!(f, "{}", d),
         }
     }
 }
@@ -77,6 +85,8 @@ pub enum FileFormat {
     JsonL,
     /// TOML documents.
     Toml,
+    /// YAML documents, including multi-document streams.
+    Yaml,
 }
 
 impl FileFormat {
@@ -94,6 +104,7 @@ impl FileFormat {
             Some("jsonc") => FileFormat::JsonC,
             Some("jsonl") | Some("ndjson") => FileFormat::JsonL,
             Some("toml") => FileFormat::Toml,
+            Some("yaml") | Some("yml") => FileFormat::Yaml,
             _ => FileFormat::Json,
         }
     }
@@ -105,6 +116,7 @@ impl FileFormat {
             FileFormat::JsonC => "jsonc",
             FileFormat::JsonL => "jsonl",
             FileFormat::Toml => "toml",
+            FileFormat::Yaml => "yaml",
         }
     }
 
@@ -115,6 +127,7 @@ impl FileFormat {
             FileFormat::JsonC => "JSONC",
             FileFormat::JsonL => "JSONL",
             FileFormat::Toml => "TOML",
+            FileFormat::Yaml => "YAML",
         }
     }
 }

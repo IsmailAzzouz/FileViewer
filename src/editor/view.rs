@@ -4,6 +4,7 @@ use super::buffer::TextSnapshot;
 use super::wrap::VisualRow;
 use crate::formats::json::{tokenize_json_line, tokenize_jsonc_line};
 use crate::formats::toml::tokenize_toml_line;
+use crate::formats::yaml::tokenize_yaml_line;
 use crate::formats::FileFormat;
 use crate::theme::{
     BORDER_SUBTLE, BTN_BG_HOVER, BTN_BG_NORMAL, EDITOR_LINE_HEIGHT, ERROR_HIGHLIGHT_BG,
@@ -244,6 +245,7 @@ fn render_editor_row(
         // the comment-aware tokenizer serves both without altering their text.
         FileFormat::JsonC | FileFormat::JsonL => tokenize_jsonc_line(content),
         FileFormat::Toml => tokenize_toml_line(content),
+        FileFormat::Yaml => tokenize_yaml_line(content),
     };
     let mut code_area = div()
         .flex_1()

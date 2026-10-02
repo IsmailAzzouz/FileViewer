@@ -11,6 +11,7 @@ use crate::formats::json::{
     parse_jsonc, parse_jsonl, JsonSpan,
 };
 use crate::formats::toml::{format_toml, minify_toml, parse_toml};
+use crate::formats::yaml::{format_yaml, minify_yaml, parse_yaml};
 use crate::theme::{
     BG_APP, CHAR_WIDTH, CODE_PADDING_LEFT, DEFAULT_WRAP_COLUMN, GUTTER_WIDTH, TEXT_MUTED,
     TREE_PANEL_WIDTH,
@@ -121,6 +122,53 @@ id = 2
 theme = "system"
 font_size = 14
 auto_save = true
+"#;
+
+/// Default rich sample YAML demonstrating the common YAML constructs.
+pub const SAMPLE_YAML: &str = r#"# FileViewer deployment manifest
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: file-viewer
+  labels:
+    app: file-viewer
+    tier: backend
+  annotations:
+    description: >-
+      Native GPUI viewer with precise
+      syntax validation.
+
+spec:
+  replicas: 3
+  paused: false
+  strategy:
+    type: RollingUpdate
+  template:
+    spec:
+      containers:
+        - name: file-viewer
+          image: "file-viewer:1.0.0"
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: RUST_LOG
+              value: info
+          resources:
+            limits:
+              cpu: "500m"
+              memory: 512Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: file-viewer-svc
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
 "#;
 
 /// The root application view entity.
@@ -272,6 +320,7 @@ impl AppView {
                         FileFormat::JsonC => parse_jsonc(&text_arc).map_err(Diagnostic::Json),
                         FileFormat::JsonL => parse_jsonl(&text_arc).map_err(Diagnostic::Json),
                         FileFormat::Toml => parse_toml(&text_arc).map_err(Diagnostic::Toml),
+                        FileFormat::Yaml => parse_yaml(&text_arc).map_err(Diagnostic::Yaml),
                     }
                 })
                 .await;
@@ -321,6 +370,7 @@ impl AppView {
             FileFormat::JsonC => self.buffer.set_text(SAMPLE_JSONC),
             FileFormat::JsonL => self.buffer.set_text(SAMPLE_JSONL),
             FileFormat::Toml => self.buffer.set_text(SAMPLE_TOML),
+            FileFormat::Yaml => self.buffer.set_text(SAMPLE_YAML),
         }
         self.rebuild_visual_rows();
         self.file_path = None;
@@ -358,6 +408,7 @@ impl AppView {
             FileFormat::JsonC => parse_jsonc(text).map_err(Diagnostic::Json),
             FileFormat::JsonL => parse_jsonl(text).map_err(Diagnostic::Json),
             FileFormat::Toml => parse_toml(text).map_err(Diagnostic::Toml),
+            FileFormat::Yaml => parse_yaml(text).map_err(Diagnostic::Yaml),
         };
 
         match result {
@@ -387,6 +438,7 @@ impl AppView {
             // normalizes trailing whitespace; the indent argument is unused.
             FileFormat::JsonL => format_jsonl(text).map_err(Diagnostic::Json),
             FileFormat::Toml => format_toml(text, 2).map_err(Diagnostic::Toml),
+            FileFormat::Yaml => format_yaml(text, 2).map_err(Diagnostic::Yaml),
         };
 
         match result {
@@ -419,6 +471,7 @@ impl AppView {
             FileFormat::JsonC => minify_jsonc(text).map_err(Diagnostic::Json),
             FileFormat::JsonL => minify_jsonl(text).map_err(Diagnostic::Json),
             FileFormat::Toml => minify_toml(text).map_err(Diagnostic::Toml),
+            FileFormat::Yaml => minify_yaml(text).map_err(Diagnostic::Yaml),
         };
 
         match result {

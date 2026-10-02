@@ -14,6 +14,7 @@ FileViewer is a desktop application for viewing files, built using the GPUI fram
 | JSONC  | `.jsonc`    |  ✅   |       ✅        |          ✅          |     ✅     |
 | JSONL  | `.jsonl`, `.ndjson` |  ✅   |       ✅        |          ✅          |     ✅     |
 | TOML   | `.toml`     |  ✅   |       ✅        |          ✅          |     ✅     |
+| YAML   | `.yaml`, `.yml` |  ✅ |       ✅        |          ✅          |     ✅     |
 
 The format is detected from the file extension when a document is opened, and
 falls back to JSON for anything unrecognized.
@@ -26,6 +27,20 @@ so comments and blank lines survive round-tripping. UTF-8 BOMs are stripped
 before formatting, and JSONL source spans are offset by the BOM length so
 highlighting and cursor sync still land on the right text.
 
+YAML support covers block mappings and sequences, flow collections, plain and
+quoted scalars, block scalars with chomping and explicit-indent indicators,
+anchors with aliases, merge keys, tags, and multi-document streams. An alias
+expands to a clone of the anchored node, so the tree shows resolved data; a key
+written directly in a mapping wins over a merged one. A multi-document stream
+appears as a synthetic root array, matching JSONL. Alias expansion is bounded by
+a node budget, so a self-referential or deliberately explosive document reports
+a diagnostic instead of exhausting memory. Complex keys (`?`) are rejected
+rather than silently dropped, and timestamps are typed as strings.
+
+`samples/feature-tour.yml` exercises these constructs and is useful for a quick
+visual check of the tree and the editor.
+
+## Features
 ## Features
 
 - Two-way synchronization between the editor and the tree view
@@ -81,10 +96,11 @@ Or pass a path to open it directly:
 
 ```
 FileViewer/
-├── src/           # Source code
-├── tests/         # Integration tests
-├── Cargo.toml     # Project configuration
-└── build.rs       # Build script
+├── samples/        # Sample documents, including a YAML feature tour
+├── src/            # Source code
+├── tests/          # Integration tests
+├── Cargo.toml      # Project configuration
+└── build.rs        # Build script
 ```
 
 ## Dependencies
@@ -93,6 +109,10 @@ FileViewer/
 - `serde` - Serialization framework
 - `serde_json` - JSON serialization with preserve_order feature
 - `toml` - TOML parsing
+
+The JSON, JSONC, JSONL, and TOML parsers are hand-written for exact source spans.
+YAML adds no dependency for the same reason: the parser is hand-written rather
+than adapting a library whose scanner reports start positions only.
 
 ## Testing
 
