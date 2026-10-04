@@ -68,6 +68,43 @@ visual check of the tree and the editor.
 | `Alt+Z`            | Toggle word wrap           |
 | `Alt+Down` / `Alt+Up` | Jump to next / previous symbol |
 
+## Install
+
+### Linux
+
+Download the `.deb` from the [releases page](https://github.com/IsmailAzzouz/FileViewer/releases):
+
+```bash
+sudo apt install ./file-viewer_0.1.0_amd64.deb
+```
+
+No root? Use the portable bundle. It installs into `~/.local` and needs no
+package manager:
+
+```bash
+tar -xf file-viewer_0.1.0_linux-x86_64.tar.xz
+cd bundle
+./install.sh                 # use --prefix DIR to choose elsewhere
+file-viewer config.toml
+```
+
+`./uninstall.sh` removes it again. Verify a download against the published
+`SHA256SUMS`:
+
+```bash
+sha256sum -c SHA256SUMS
+```
+
+### Windows
+
+Download the `.msi` or the `.zip` from the
+[releases page](https://github.com/IsmailAzzouz/FileViewer/releases) and run the
+installer, or extract the archive anywhere and run `file-viewer.exe`.
+
+### macOS
+
+No prebuilt binaries yet. Build from source with `cargo build --release`.
+
 ## Getting Started
 
 Build the project, then open a file by passing its path as an argument or with
@@ -100,6 +137,25 @@ Or pass a path to open it directly:
 ```bash
 ./target/release/file-viewer config.toml
 ```
+
+Or, once installed:
+
+```bash
+file-viewer config.toml
+```
+
+## Building Release Artifacts
+
+Linux installers are built by a committed script, so a release is reproducible
+from a clean checkout:
+
+```bash
+packaging/linux/build_release.sh
+```
+
+It builds the release binary, generates icons, stages a `.deb` and a portable
+`.tar.xz`, and writes `dist/SHA256SUMS`. An AppImage is added too when
+`appimagetool` is on `PATH`.
 
 ## Project Structure
 

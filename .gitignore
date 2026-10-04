@@ -7,3 +7,5 @@
 *.excalidraw
 /fileviewer-architecture.png
 /repo_explanation.html
+# Release artifacts.
+/dist

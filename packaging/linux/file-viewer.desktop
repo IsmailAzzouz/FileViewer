@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=FileViewer
+GenericName=Document Viewer
+Comment=View and edit JSON, JSONC, JSONL, TOML, and YAML with a synchronized tree
+Exec=file-viewer %f
+Icon=file-viewer
+Terminal=false
+Categories=Development;Utility;TextEditor;
+MimeType=application/json;application/x-ndjson;application/toml;application/yaml;application/x-yaml;text/plain;
+Keywords=json;toml;yaml;jsonl;jsonc;viewer;editor;tree;format;minify;
+StartupNotify=true
+StartupWMClass=file-viewer
