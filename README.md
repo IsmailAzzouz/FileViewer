@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/header.svg" alt="FileViewer — Precise by Construction" width="100%" />
+</p>
+
 # FileViewer
 
 A file viewer application built with GPUI (Graphical Processing User Interface) framework in Rust.
@@ -41,7 +45,6 @@ rather than silently dropped, and timestamps are typed as strings.
 visual check of the tree and the editor.
 
 ## Features
-## Features
 
 - Two-way synchronization between the editor and the tree view
 - Pretty-printing and minification per format
@@ -80,6 +83,12 @@ cargo run --release -- config.jsonc
 cargo build --release
 ```
 
+On Linux the GPUI runtime needs the XCB and XKB development libraries at link
+time (`libxcb1-dev`, `libxkbcommon-dev`, `libxkbcommon-x11-dev`). Without them the
+build fails at the final link with `rust-lld: error: unable to find library
+-lxcb`. Any distro package manager works; the crates themselves compile fine
+because GPUI loads its platform libraries dynamically.
+
 ### Running
 
 ```bash
@@ -96,6 +105,7 @@ Or pass a path to open it directly:
 
 ```
 FileViewer/
+├── assets/         # README header artwork
 ├── samples/        # Sample documents, including a YAML feature tour
 ├── src/            # Source code
 ├── tests/          # Integration tests
@@ -122,4 +132,4 @@ cargo test
 
 ## License
 
-MIT License
+[MIT](LICENSE)

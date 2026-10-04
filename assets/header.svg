@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" role="img" aria-labelledby="title description">
+  <title id="title">FileViewer — Precise by Construction</title>
+  <desc id="description">A restrained white FileViewer monogram and wordmark on black, with a node spine beside the F and the motto Precise by Construction.</desc>
+  <defs>
+    <linearGradient id="mark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d6d6d6"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="400" fill="#050505"/>
+
+  <!-- Four open corners frame the work without enclosing it. -->
+  <g fill="none" stroke="#6d6d6d" stroke-width="1.5">
+    <path d="M 532 93 V 67 H 558"/>
+    <path d="M 668 67 V 93 H 690"/>
+    <path d="M 532 151 V 177 H 558"/>
+    <path d="M 668 177 H 690 V 151"/>
+  </g>
+
+  <!-- The F is cut from three deliberate strokes. -->
+  <g fill="url(#mark)">
+    <path d="M 560 86 H 573 V 158 H 560 Z"/>
+    <path d="M 573 86 H 626 L 616 99 H 573 Z"/>
+    <path d="M 573 116 H 611 L 601 129 H 573 Z"/>
+  </g>
+
+  <!-- The spine beside it: the tree view, three levels deep. -->
+  <g stroke="#8a8a8a" stroke-width="1.5" fill="none">
+    <path d="M 646 100 V 144"/>
+    <path d="M 646 100 H 654"/>
+    <path d="M 646 122 H 654"/>
+    <path d="M 646 144 H 654"/>
+  </g>
+  <g fill="#8a8a8a">
+    <circle cx="660" cy="100" r="3.5"/>
+    <circle cx="660" cy="122" r="3.5"/>
+    <circle cx="660" cy="144" r="3.5"/>
+  </g>
+
+  <text x="600" y="276" text-anchor="middle" fill="#f4f4f4"
+        font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="400"
+        letter-spacing="14">FILEVIEWER</text>
+  <text x="600" y="318" text-anchor="middle" fill="#cfcfcf"
+        font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="400"
+        letter-spacing="8">PRECISE BY CONSTRUCTION</text>
+</svg>
