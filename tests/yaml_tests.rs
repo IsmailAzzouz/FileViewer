@@ -855,3 +855,40 @@ spec:
     let reparsed = parse_yaml(&formatted).unwrap().unwrap();
     assert_eq!(reparsed.total_node_count(), root.total_node_count());
 }
+
+#[test]
+fn test_yaml_multiline_double_quoted_escaped_break() {
+    let source = "multiline_double: \"wrapped \\\n  onto the next line\"\n";
+    let root = parse_yaml(source).unwrap().unwrap();
+    let node = find_by_path(&root, "$.multiline_double");
+    assert_eq!(node.value_preview, "wrapped onto the next line");
+}
+
+#[test]
+fn test_yaml_multiline_double_quoted_folded() {
+    let source = "folded_double: \"first line\n  second line\"\n";
+    let root = parse_yaml(source).unwrap().unwrap();
+    let node = find_by_path(&root, "$.folded_double");
+    assert_eq!(node.value_preview, "first line second line");
+}
+
+#[test]
+fn test_yaml_multiline_single_quoted() {
+    let source = "folded_single: 'first line\n  second line'\n";
+    let root = parse_yaml(source).unwrap().unwrap();
+    let node = find_by_path(&root, "$.folded_single");
+    assert_eq!(node.value_preview, "first line second line");
+}
+
+#[test]
+fn test_yaml_feature_tour_file_parses_completely() {
+    let path = std::path::Path::new("samples/feature-tour.yml");
+    let content = std::fs::read_to_string(path).expect("feature-tour.yml must exist");
+    let root = parse_yaml(&content)
+        .expect("feature-tour.yml must parse without errors")
+        .expect("root node must exist");
+    assert_eq!(root.children.len(), 3, "multi-document stream has 3 documents");
+    let multiline = find_by_path(&root, "$[0].strings.multiline_double");
+    assert_eq!(multiline.value_preview, "wrapped onto the next line");
+}
+

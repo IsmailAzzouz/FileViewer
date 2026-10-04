@@ -1234,16 +1234,19 @@ impl<'a> YamlParser<'a> {
 
     /// Scans a single- or double-quoted scalar, returning the decoded text and
     /// the offset just past the closing quote.
+    ///
+    /// Complexity: O(N) where N is the number of bytes until the closing quote.
     fn scan_quoted(&self, start: usize) -> Result<(String, usize), YamlDiagnostic> {
         let quote = self.bytes[start];
         let mut i = start + 1;
         while i < self.bytes.len() {
             let b = self.bytes[i];
-            if b == b'\n' {
-                return Err(self.err_at(start, "Unterminated quoted scalar"));
-            }
             if quote == b'"' && b == b'\\' {
-                i += 2;
+                if self.bytes.get(i + 1) == Some(&b'\r') && self.bytes.get(i + 2) == Some(&b'\n') {
+                    i += 3;
+                } else {
+                    i += 2;
+                }
                 continue;
             }
             if b == quote {
@@ -1586,7 +1589,208 @@ fn preview(text: &str) -> String {
     }
 }
 
-/// Decodes a quoted scalar, honouring double-quoted escape sequences.
+/// Decodes a single-quoted scalar, folding multiline line breaks and unescaping doubled quotes.
+///
+/// Complexity: O(N) where N is the length of `inner`.
+fn decode_single_quoted(inner: &str) -> String {
+    let unescaped = inner.replace("''", "'");
+    if !unescaped.contains('\n') && !unescaped.contains('\r') {
+        return unescaped;
+    }
+    let mut out = String::with_capacity(unescaped.len());
+    let mut chars = unescaped.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\r' || ch == '\n' {
+            if ch == '\r' && chars.peek() == Some(&'\n') {
+                chars.next();
+            }
+            let mut newline_count = 1;
+            loop {
+                while let Some(&ws) = chars.peek() {
+                    if ws == ' ' || ws == '\t' {
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                if chars.peek() == Some(&'\r') {
+                    chars.next();
+                    if chars.peek() == Some(&'\n') {
+                        chars.next();
+                    }
+                    newline_count += 1;
+                } else if chars.peek() == Some(&'\n') {
+                    chars.next();
+                    newline_count += 1;
+                } else {
+                    break;
+                }
+            }
+            if newline_count == 1 {
+                out.push(' ');
+            } else {
+                for _ in 0..(newline_count - 1) {
+                    out.push('\n');
+                }
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// Decodes a double-quoted scalar, supporting escape codes, escaped line breaks, and multiline folding.
+///
+/// Complexity: O(N) where N is the length of `inner`.
+fn decode_double_quoted(inner: &str) -> String {
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            match chars.peek().copied() {
+                Some('\r') => {
+                    chars.next();
+                    if chars.peek() == Some(&'\n') {
+                        chars.next();
+                    }
+                    // Escaped line break: strip leading whitespace on next line
+                    while let Some(&next_ch) = chars.peek() {
+                        if next_ch == ' ' || next_ch == '\t' {
+                            chars.next();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                Some('\n') => {
+                    chars.next();
+                    // Escaped line break: strip leading whitespace on next line
+                    while let Some(&next_ch) = chars.peek() {
+                        if next_ch == ' ' || next_ch == '\t' {
+                            chars.next();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                Some('n') => { chars.next(); out.push('\n'); }
+                Some('t') => { chars.next(); out.push('\t'); }
+                Some('r') => { chars.next(); out.push('\r'); }
+                Some('0') => { chars.next(); out.push('\0'); }
+                Some('a') => { chars.next(); out.push('\u{7}'); }
+                Some('b') => { chars.next(); out.push('\u{8}'); }
+                Some('f') => { chars.next(); out.push('\u{c}'); }
+                Some('v') => { chars.next(); out.push('\u{b}'); }
+                Some('e') => { chars.next(); out.push('\u{1b}'); }
+                Some('\\') => { chars.next(); out.push('\\'); }
+                Some('"') => { chars.next(); out.push('"'); }
+                Some('/') => { chars.next(); out.push('/'); }
+                Some(' ') => { chars.next(); out.push(' '); }
+                Some('_') => { chars.next(); out.push('\u{a0}'); }
+                Some('N') => { chars.next(); out.push('\u{85}'); }
+                Some('L') => { chars.next(); out.push('\u{2028}'); }
+                Some('P') => { chars.next(); out.push('\u{2029}'); }
+                Some('x') => {
+                    chars.next();
+                    let mut hex = String::new();
+                    for _ in 0..2 {
+                        if let Some(&h) = chars.peek() {
+                            if h.is_ascii_hexdigit() {
+                                hex.push(h);
+                                chars.next();
+                            }
+                        }
+                    }
+                    if let Ok(val) = u32::from_str_radix(&hex, 16) {
+                        if let Some(c) = char::from_u32(val) {
+                            out.push(c);
+                        }
+                    }
+                }
+                Some('u') => {
+                    chars.next();
+                    let mut hex = String::new();
+                    for _ in 0..4 {
+                        if let Some(&h) = chars.peek() {
+                            if h.is_ascii_hexdigit() {
+                                hex.push(h);
+                                chars.next();
+                            }
+                        }
+                    }
+                    if let Ok(val) = u32::from_str_radix(&hex, 16) {
+                        if let Some(c) = char::from_u32(val) {
+                            out.push(c);
+                        }
+                    }
+                }
+                Some('U') => {
+                    chars.next();
+                    let mut hex = String::new();
+                    for _ in 0..8 {
+                        if let Some(&h) = chars.peek() {
+                            if h.is_ascii_hexdigit() {
+                                hex.push(h);
+                                chars.next();
+                            }
+                        }
+                    }
+                    if let Ok(val) = u32::from_str_radix(&hex, 16) {
+                        if let Some(c) = char::from_u32(val) {
+                            out.push(c);
+                        }
+                    }
+                }
+                Some(other) => {
+                    chars.next();
+                    out.push(other);
+                }
+                None => {
+                    out.push('\\');
+                }
+            }
+        } else if ch == '\r' || ch == '\n' {
+            if ch == '\r' && chars.peek() == Some(&'\n') {
+                chars.next();
+            }
+            let mut newline_count = 1;
+            loop {
+                while let Some(&ws) = chars.peek() {
+                    if ws == ' ' || ws == '\t' {
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                if chars.peek() == Some(&'\r') {
+                    chars.next();
+                    if chars.peek() == Some(&'\n') {
+                        chars.next();
+                    }
+                    newline_count += 1;
+                } else if chars.peek() == Some(&'\n') {
+                    chars.next();
+                    newline_count += 1;
+                } else {
+                    break;
+                }
+            }
+            if newline_count == 1 {
+                out.push(' ');
+            } else {
+                for _ in 0..(newline_count - 1) {
+                    out.push('\n');
+                }
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// Decodes a quoted scalar, honouring single/double-quoted escape sequences and line folding.
 fn decode_quoted(raw: &str) -> Result<String, YamlDiagnostic> {
     let bytes = raw.as_bytes();
     if bytes.len() < 2 {
@@ -1599,35 +1803,10 @@ fn decode_quoted(raw: &str) -> Result<String, YamlDiagnostic> {
     let inner = &raw[1..raw.len() - 1];
 
     if quote == b'\'' {
-        return Ok(inner.replace("''", "'"));
+        Ok(decode_single_quoted(inner))
+    } else {
+        Ok(decode_double_quoted(inner))
     }
-
-    let mut out = String::with_capacity(inner.len());
-    let mut chars = inner.chars();
-    while let Some(ch) = chars.next() {
-        if ch != '\\' {
-            out.push(ch);
-            continue;
-        }
-        match chars.next() {
-            Some('n') => out.push('\n'),
-            Some('t') => out.push('\t'),
-            Some('r') => out.push('\r'),
-            Some('0') => out.push('\0'),
-            Some('a') => out.push('\u{7}'),
-            Some('b') => out.push('\u{8}'),
-            Some('f') => out.push('\u{c}'),
-            Some('v') => out.push('\u{b}'),
-            Some('e') => out.push('\u{1b}'),
-            Some('\\') => out.push('\\'),
-            Some('"') => out.push('"'),
-            Some('/') => out.push('/'),
-            Some(' ') => out.push(' '),
-            Some(other) => out.push(other),
-            None => out.push('\\'),
-        }
-    }
-    Ok(out)
 }
 
 /// Decodes a flow mapping key, which may or may not be quoted.

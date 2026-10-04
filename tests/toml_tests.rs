@@ -348,3 +348,12 @@ fn test_toml_recursion_depth_limit() {
     let err = parse_toml(&source).unwrap_err();
     assert!(err.message.contains("nesting depth"), "got: {}", err.message);
 }
+
+#[test]
+fn test_toml_crlf_table_headers() {
+    let source = "[package]\r\nname = \"file-viewer\"\r\nversion = \"0.1.0\"\r\n\r\n[dependencies]\r\ngpui = \"0.2.2\"\r\n";
+    let root = parse_toml(source).expect("CRLF TOML should parse cleanly").expect("root node exists");
+    assert_eq!(root.children.len(), 2);
+    assert_eq!(root.children[0].key.as_deref(), Some("package"));
+    assert_eq!(root.children[1].key.as_deref(), Some("dependencies"));
+}

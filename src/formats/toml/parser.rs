@@ -137,8 +137,10 @@ impl<'a> TomlParser<'a> {
                 self.line += 1;
                 self.col = 1;
             } else if b & 0xC0 != 0x80 {
-                // Count UTF-8 characters, not continuation bytes.
-                self.col += 1;
+                // Count UTF-8 characters, not continuation bytes or CR.
+                if b != b'\r' {
+                    self.col += 1;
+                }
             }
         }
     }
@@ -223,7 +225,12 @@ impl<'a> TomlParser<'a> {
                 }
                 self.bump();
             }
-        } else if self.peek().is_some() && self.peek() != Some(b'\n') {
+        }
+        self.skip_inline_ws();
+        if self.peek() == Some(b'\r') {
+            self.bump();
+        }
+        if self.peek().is_some() && self.peek() != Some(b'\n') {
             return Err(self.err_at(
                 self.cursor,
                 "unexpected content after table header".into(),
