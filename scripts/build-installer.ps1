@@ -137,4 +137,21 @@ if ($zipFile) {
     Write-Host "Size:      $($zipFile.Length) bytes ($zipSizeMB MB)" -ForegroundColor White
     Write-Host "SHA256:    $zipSha256" -ForegroundColor White
 }
+# Update dist/SHA256SUMS if present
+$sumsFile = Join-Path $distPath "SHA256SUMS"
+if (Test-Path $sumsFile) {
+    $lines = Get-Content $sumsFile
+    $newLines = @()
+    foreach ($line in $lines) {
+        if ($line -match "FileViewer-Setup-.*\.exe") {
+            $newLines += "$($sha256.ToLower())  ./$($installerFile.Name)"
+        } elseif ($line -match "FileViewer-.*windows-x86_64\.zip") {
+            $newLines += "$($zipSha256.ToLower())  ./$($zipFile.Name)"
+        } else {
+            $newLines += $line
+        }
+    }
+    Set-Content -Path $sumsFile -Value $newLines -NoNewline:$false
+}
+
 Write-Host "====================================================" -ForegroundColor Green

@@ -31,9 +31,9 @@ def render_icon(size=1024):
     draw = ImageDraw.Draw(img)
 
     # Coordinates from SVG:
-    # Bounding box in SVG: X from 532 to 690 (width 158), Y from 67 to 177 (height 110)
-    # Center: (611, 122)
-    svg_cx = 611.0
+    # Bounding box in SVG: X from 521 to 679 (width 158), Y from 67 to 177 (height 110)
+    # Center: (600, 122)
+    svg_cx = 600.0
     svg_cy = 122.0
     scale = (size * 0.58) / 158.0  # fills ~58% of icon with symbol
     target_cx = size / 2.0
@@ -49,21 +49,21 @@ def render_icon(size=1024):
     bracket_color = (130, 130, 138, 255)
 
     # Top-left corner
-    draw.line([t(532, 93), t(532, 67), t(558, 67)], fill=bracket_color, width=corner_stroke, joint="miter")
+    draw.line([t(521, 93), t(521, 67), t(547, 67)], fill=bracket_color, width=corner_stroke, joint="miter")
     # Top-right corner
-    draw.line([t(668, 67), t(690, 67), t(690, 93)], fill=bracket_color, width=corner_stroke, joint="miter")
+    draw.line([t(653, 67), t(679, 67), t(679, 93)], fill=bracket_color, width=corner_stroke, joint="miter")
     # Bottom-left corner
-    draw.line([t(532, 151), t(532, 177), t(558, 177)], fill=bracket_color, width=corner_stroke, joint="miter")
+    draw.line([t(521, 151), t(521, 177), t(547, 177)], fill=bracket_color, width=corner_stroke, joint="miter")
     # Bottom-right corner
-    draw.line([t(668, 177), t(690, 177), t(690, 151)], fill=bracket_color, width=corner_stroke, joint="miter")
+    draw.line([t(653, 177), t(679, 177), t(679, 151)], fill=bracket_color, width=corner_stroke, joint="miter")
 
     # Monogram 'F'
-    # Vertical spine: 560, 86 to 573, 158
-    f_stem = [t(560, 86), t(573, 86), t(573, 158), t(560, 158)]
-    # Top arm: 573, 86 -> 626, 86 -> 616, 99 -> 573, 99
-    f_top = [t(573, 86), t(626, 86), t(616, 99), t(573, 99)]
-    # Mid arm: 573, 116 -> 611, 116 -> 601, 129 -> 573, 129
-    f_mid = [t(573, 116), t(611, 116), t(601, 129), t(573, 129)]
+    # Vertical spine: 549, 86 to 562, 158
+    f_stem = [t(549, 86), t(562, 86), t(562, 158), t(549, 158)]
+    # Top arm: 562, 86 -> 615, 86 -> 605, 99 -> 562, 99
+    f_top = [t(562, 86), t(615, 86), t(605, 99), t(562, 99)]
+    # Mid arm: 562, 116 -> 600, 116 -> 590, 129 -> 562, 129
+    f_mid = [t(562, 116), t(600, 116), t(590, 129), t(562, 129)]
 
     # Draw F polygons in crisp white/off-white
     draw.polygon(f_stem, fill=(245, 245, 248, 255))
@@ -75,16 +75,16 @@ def render_icon(size=1024):
     spine_width = max(2, int(1.7 * scale))
 
     # Vertical trunk
-    draw.line([t(646, 100), t(646, 144)], fill=spine_color, width=spine_width)
+    draw.line([t(635, 100), t(635, 144)], fill=spine_color, width=spine_width)
     # Three horizontal branches
-    draw.line([t(646, 100), t(654, 100)], fill=spine_color, width=spine_width)
-    draw.line([t(646, 122), t(654, 122)], fill=spine_color, width=spine_width)
-    draw.line([t(646, 144), t(654, 144)], fill=spine_color, width=spine_width)
+    draw.line([t(635, 100), t(643, 100)], fill=spine_color, width=spine_width)
+    draw.line([t(635, 122), t(643, 122)], fill=spine_color, width=spine_width)
+    draw.line([t(635, 144), t(643, 144)], fill=spine_color, width=spine_width)
 
     # 3 node circles
     node_r = 3.6 * scale
     for ny in [100, 122, 144]:
-        cx, cy = t(660, ny)
+        cx, cy = t(649, ny)
         draw.ellipse([cx - node_r, cy - node_r, cx + node_r, cy + node_r], fill=(180, 185, 195, 255))
 
     return img
