@@ -1244,12 +1244,12 @@ pub fn parse_jsonl(source: &str) -> Result<Option<TreeNode>, JsonDiagnostic> {
     let mut children: Vec<TreeNode> = Vec::new();
     let mut next_id = 1usize;
     let mut byte = 0usize;
-    let mut line_no = 1usize;
     // Byte length of any stripped BOM; spans are made absolute to `source` so
     // that callers indexing the original buffer stay in sync.
     let bom_len = source.len() - stripped.len();
 
-    for raw_line in stripped.split_inclusive('\n') {
+    for (line_idx, raw_line) in stripped.split_inclusive('\n').enumerate() {
+        let line_no = line_idx + 1;
         let content = raw_line.trim_end_matches(['\n', '\r']);
         let line_start = byte;
         byte += raw_line.len();
@@ -1267,8 +1267,6 @@ pub fn parse_jsonl(source: &str) -> Result<Option<TreeNode>, JsonDiagnostic> {
                 children.push(record);
             }
         }
-
-        line_no += 1;
     }
 
     if children.is_empty() {

@@ -1,0 +1,22 @@
+{
+  "name": "FileViewer",
+  "version": "0.1.0",
+  "description": "High-performance GPU-accelerated viewer & editor for structured data",
+  "features": [
+    "Two-way synchronization between editor and tree view",
+    "Precise syntax highlighting with line/column tracking",
+    "Real-time validation diagnostics",
+    "In-document search and symbol navigation",
+    "Format and Minify actions"
+  ],
+  "supportedFormats": {
+    "json": [".json", ".jsonc", ".jsonl", ".ndjson"],
+    "yaml": [".yaml", ".yml"],
+    "toml": [".toml"]
+  },
+  "settings": {
+    "theme": "dark",
+    "wordWrap": true,
+    "treeVisible": true
+  }
+}

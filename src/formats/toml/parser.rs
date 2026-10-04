@@ -864,8 +864,7 @@ fn classify_bare_value(text: &str) -> Option<TomlType> {
 
     // Hex / octal / binary integers.
     for prefix in ["0x", "0o", "0b"] {
-        if lowered.starts_with(prefix) {
-            let digits = &lowered[prefix.len()..];
+        if let Some(digits) = lowered.strip_prefix(prefix) {
             let radix = match prefix {
                 "0x" => 16,
                 "0o" => 8,
@@ -947,14 +946,12 @@ fn append_segment(path: &str, seg: &str) -> String {
 fn preview_from_source(text: &str) -> String {
     const MAX: usize = 60;
     let mut out = String::new();
-    let mut count = 0usize;
-    for ch in text.chars() {
+    for (count, ch) in text.chars().enumerate() {
         if count >= MAX {
             out.push_str("...");
             break;
         }
         out.push(ch);
-        count += 1;
     }
     out
 }

@@ -398,7 +398,7 @@ fn test_yaml_tag_recorded_in_preview() {
     // The span includes the tag, since the tag is part of the value.
     assert_span_text(source, a, "!!str 123");
     // The tag does not change the inferred type.
-    assert_type(&find_by_path(&root, "$.b"), YamlType::Integer);
+    assert_type(find_by_path(&root, "$.b"), YamlType::Integer);
 }
 
 #[test]

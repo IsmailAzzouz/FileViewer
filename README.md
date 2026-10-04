@@ -97,9 +97,10 @@ sha256sum -c SHA256SUMS
 
 ### Windows
 
-Download the `.msi` or the `.zip` from the
+Download `FileViewer-Setup-0.1.0.exe` (or the portable `.zip`) from the
 [releases page](https://github.com/IsmailAzzouz/FileViewer/releases) and run the
-installer, or extract the archive anywhere and run `file-viewer.exe`.
+installer. The installer configures optional desktop shortcuts, the "Open with FileViewer"
+right-click context menu, and default file associations for JSON, YAML, and TOML.
 
 ### macOS
 
@@ -145,9 +146,7 @@ file-viewer config.toml
 ```
 
 ## Building Release Artifacts
-
-Linux installers are built by a committed script, so a release is reproducible
-from a clean checkout:
+### Linux
 
 ```bash
 packaging/linux/build_release.sh
@@ -156,6 +155,15 @@ packaging/linux/build_release.sh
 It builds the release binary, generates icons, stages a `.deb` and a portable
 `.tar.xz`, and writes `dist/SHA256SUMS`. An AppImage is added too when
 `appimagetool` is on `PATH`.
+
+### Windows
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1
+```
+
+It builds the release binary with embedded Windows icon and PE version information,
+and compiles the Inno Setup installer into `dist/FileViewer-Setup-0.1.0.exe`.
 
 ## Project Structure
 

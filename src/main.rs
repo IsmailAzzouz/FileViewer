@@ -1,5 +1,7 @@
 //! Application executable entry point.
 
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use file_viewer::app::AppView;
 use gpui::*;
 use std::path::PathBuf;

@@ -1,0 +1,26 @@
+# FileViewer - Sample TOML Configuration
+[application]
+name = "FileViewer"
+version = "0.1.0"
+author = "Ismail Azzouz"
+
+[window]
+width = 1120
+height = 780
+title = "FileViewer - JSON Editor & Viewer"
+
+[editor]
+word_wrap = true
+tree_visible = true
+
+[formats.json]
+extensions = [".json", ".jsonc", ".jsonl", ".ndjson"]
+parser = "lossless"
+
+[formats.yaml]
+extensions = [".yaml", ".yml"]
+merge_keys = true
+
+[formats.toml]
+extensions = [".toml"]
+comments_preserved = true

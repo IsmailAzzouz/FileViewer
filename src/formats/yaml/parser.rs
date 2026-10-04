@@ -382,11 +382,10 @@ impl<'a> YamlParser<'a> {
         if line.content_start >= line.end || self.bytes[line.content_start] != b'-' {
             return false;
         }
-        match self.bytes.get(line.content_start + 1) {
-            None => true,
-            Some(b' ') | Some(b'\t') | Some(b'\r') => true,
-            _ => false,
-        }
+        matches!(
+            self.bytes.get(line.content_start + 1),
+            None | Some(b' ' | b'\t' | b'\r')
+        )
     }
 
     /// Finds the byte offset of the `:` that separates a key from its value on
