@@ -5,4 +5,5 @@
 # Local agent tooling and scratch artifacts, not part of the application.
 .agents/
 *.excalidraw
+/fileviewer-architecture.png
 /repo_explanation.html
